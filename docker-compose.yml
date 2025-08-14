@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: clienteos-db
+    environment:
+      POSTGRES_USER: clienteos
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: clienteos
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clienteos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - clienteos-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: clienteos-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://clienteos:password@postgres:5432/clienteos
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT}
+      AZURE_OPENAI_KEY: ${AZURE_OPENAI_KEY}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
+      WA_ACCESS_TOKEN: ${WA_ACCESS_TOKEN}
+      WA_PHONE_NUMBER_ID: ${WA_PHONE_NUMBER_ID}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: python main.py
+    networks:
+      - clienteos-network
+
+networks:
+  clienteos-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
