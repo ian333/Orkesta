@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 Orkesta Control Tower V2 - Multi-tenant</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --bg-primary: #0a0e27;
+            --bg-secondary: #151935;
+            --bg-card: #1e2341;
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-yellow: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-purple: #8b5cf6;
+            --border: #2d3561;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            position: relative;
+        }
+        
+        /* Loading Overlay */
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 14, 39, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.3s;
+        }
+        
+        #loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Header con Tenant Switcher */
+        header {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            background: rgba(30, 35, 65, 0.95);
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        /* Tenant Switcher */
+        .tenant-switcher {
+            position: relative;
+        }
+        
+        .tenant-current {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .tenant-current:hover {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+        }
+        
+        .tenant-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .tenant-badge.production {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-green);
+        }
+        
+        .tenant-badge.sandbox {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--accent-yellow);
+        }
+        
+        .tenant-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 0.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            min-width: 300px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+        
+        .tenant-dropdown.active {
+            display: block;
+        }
+        
+        .tenant-option {
+            padding: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .tenant-option:last-child {
+            border-bottom: none;
+        }
+        
+        .tenant-option:hover {
+            background: var(--bg-secondary);
+        }
+        
+        .tenant-option.selected {
+            background: rgba(59, 130, 246, 0.1);
+            border-left: 3px solid var(--accent-blue);
+        }
+        
+        /* Main Grid */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            padding: 2rem;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .card:hover::before {
+            opacity: 1;
+        }
+        
+        .card.updating {
+            animation: pulse 1s ease-in-out;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .card-title {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .card-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }
+        
+        .card-trend {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .trend-up {
+            color: var(--accent-green);
+        }
+        
+        .trend-down {
+            color: var(--accent-red);
+        }
+        
+        /* Status Pills */
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .status.online {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent-green);
+        }
+        
+        .status.degraded {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--accent-yellow);
+        }
+        
+        .status.offline {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--accent-red);
+        }
+        
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            text-align: left;
+            padding: 0.75rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        td {
+            padding: 0.75rem;
+            border-bottom: 1px solid rgba(45, 53, 97, 0.5);
+        }
+        
+        tr:hover {
+            background: rgba(59, 130, 246, 0.05);
+        }
+        
+        /* Kill Switch */
+        .kill-switch {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+        }
+        
+        .kill-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #dc2626, #991b1b);
+            border: 3px solid #7f1d1d;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 10px 40px rgba(220, 38, 38, 0.5);
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+        }
+        
+        .kill-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 15px 50px rgba(220, 38, 38, 0.7);
+        }
+        
+        .kill-button.active {
+            background: linear-gradient(135deg, #10b981, #047857);
+            border-color: #064e3b;
+            box-shadow: 0 10px 40px rgba(16, 185, 129, 0.5);
+        }
+        
+        /* Time Machine */
+        .time-machine {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem;
+            max-width: 1760px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .time-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .time-input {
+            padding: 0.5rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+        }
+        
+        .btn {
+            padding: 0.5rem 1.5rem;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.4);
+        }
+        
+        /* Notifications */
+        .notification {
+            position: fixed;
+            top: 5rem;
+            right: 2rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+            max-width: 400px;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .notification.success {
+            border-left: 4px solid var(--accent-green);
+        }
+        
+        .notification.error {
+            border-left: 4px solid var(--accent-red);
+        }
+        
+        .notification.info {
+            border-left: 4px solid var(--accent-blue);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                padding: 1rem;
+            }
+            
+            header {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .time-controls {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+    
+    <!-- Header -->
+    <header>
+        <div class="header-left">
+            <div class="logo">🎮 Control Tower V2</div>
+            
+            <!-- Tenant Switcher -->
+            <div class="tenant-switcher">
+                <div class="tenant-current" onclick="toggleTenantDropdown()">
+                    <span id="current-tenant-name">Cargando...</span>
+                    <span id="current-tenant-badge" class="tenant-badge">—</span>
+                    <span>▼</span>
+                </div>
+                <div id="tenant-dropdown" class="tenant-dropdown">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="header-right">
+            <span id="sync-status" class="status online">
+                <span class="status-dot">●</span>
+                <span>Sincronizado</span>
+            </span>
+            <span id="last-update" style="margin-left: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
+                Actualizado: <span id="update-time">—</span>
+            </span>
+        </div>
+    </header>
+    
+    <!-- Main Dashboard Grid -->
+    <div class="dashboard-grid" id="dashboard-grid">
+        <!-- Cards se generan dinámicamente -->
+    </div>
+    
+    <!-- Time Machine -->
+    <div class="time-machine">
+        <div class="card-header">
+            <h3>⏰ Time Machine - Simular Fechas para Testing</h3>
+        </div>
+        <div class="time-controls">
+            <input type="date" id="simulated-date" class="time-input">
+            <button class="btn" onclick="setTimeMachine()">Aplicar Fecha</button>
+            <button class="btn" onclick="resetTimeMachine()">Volver a Hoy</button>
+            <span id="time-offset" style="color: var(--text-secondary);">Offset: 0 días</span>
+        </div>
+    </div>
+    
+    <!-- Kill Switch -->
+    <div class="kill-switch">
+        <button id="kill-button" class="kill-button" onclick="toggleKillSwitch()">
+            KILL<br>SWITCH
+        </button>
+    </div>
+    
+    <!-- JavaScript Modules -->
+    <script type="module">
+        // ==================== Tenant Store ====================
+        class TenantStore {
+            constructor() {
+                this.currentTenant = null;
+                this.tenants = [];
+                this.callbacks = [];
+                this.channel = new BroadcastChannel('tenant-sync');
+                
+                // Escuchar cambios de otras pestañas
+                this.channel.onmessage = (event) => {
+                    if (event.data.type === 'tenant-changed') {
+                        this.currentTenant = event.data.tenant;
+                        this.notifyCallbacks();
+                    }
+                };
+                
+                // Cargar tenant guardado
+                const saved = localStorage.getItem('current-tenant');
+                if (saved) {
+                    this.currentTenant = JSON.parse(saved);
+                }
+            }
+            
+            setTenant(tenant) {
+                this.currentTenant = tenant;
+                localStorage.setItem('current-tenant', JSON.stringify(tenant));
+                
+                // Notificar a otras pestañas
+                this.channel.postMessage({
+                    type: 'tenant-changed',
+                    tenant: tenant
+                });
+                
+                this.notifyCallbacks();
+            }
+            
+            getTenant() {
+                return this.currentTenant;
+            }
+            
+            onChange(callback) {
+                this.callbacks.push(callback);
+            }
+            
+            notifyCallbacks() {
+                this.callbacks.forEach(cb => cb(this.currentTenant));
+            }
+        }
+        
+        // ==================== API Client ====================
+        class ApiClient {
+            constructor(tenantStore) {
+                this.baseUrl = 'http://localhost:8002';
+                this.tenantStore = tenantStore;
+                this.cache = new Map();
+            }
+            
+            async fetch(endpoint, options = {}) {
+                const tenant = this.tenantStore.getTenant();
+                if (!tenant) {
+                    throw new Error('No tenant selected');
+                }
+                
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-Org-Id': tenant.id,
+                    ...options.headers
+                };
+                
+                const response = await fetch(`${this.baseUrl}${endpoint}`, {
+                    ...options,
+                    headers
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API Error: ${response.statusText}`);
+                }
+                
+                return response.json();
+            }
+            
+            invalidateCache() {
+                this.cache.clear();
+            }
+        }
+        
+        // ==================== Dashboard Controller ====================
+        class DashboardController {
+            constructor(tenantStore, apiClient) {
+                this.tenantStore = tenantStore;
+                this.apiClient = apiClient;
+                this.updateInterval = null;
+                
+                // Escuchar cambios de tenant
+                this.tenantStore.onChange((tenant) => {
+                    this.onTenantChanged(tenant);
+                });
+            }
+            
+            async init() {
+                // Cargar lista de tenants
+                await this.loadTenants();
+                
+                // Si hay tenant guardado, cargar su dashboard
+                const currentTenant = this.tenantStore.getTenant();
+                if (currentTenant) {
+                    await this.loadDashboard();
+                }
+                
+                // Iniciar actualización automática
+                this.startAutoUpdate();
+            }
+            
+            async loadTenants() {
+                try {
+                    const response = await fetch(`${this.apiClient.baseUrl}/api/tenants`);
+                    const data = await response.json();
+                    
+                    this.tenantStore.tenants = data.tenants;
+                    this.renderTenantDropdown(data.tenants);
+                    
+                    // Si no hay tenant seleccionado, usar el primero
+                    if (!this.tenantStore.getTenant() && data.tenants.length > 0) {
+                        this.tenantStore.setTenant(data.tenants[0]);
+                    }
+                } catch (error) {
+                    console.error('Error loading tenants:', error);
+                    this.showNotification('Error cargando tenants', 'error');
+                }
+            }
+            
+            renderTenantDropdown(tenants) {
+                const dropdown = document.getElementById('tenant-dropdown');
+                const currentTenant = this.tenantStore.getTenant();
+                
+                dropdown.innerHTML = tenants.map(tenant => `
+                    <div class="tenant-option ${currentTenant?.id === tenant.id ? 'selected' : ''}" 
+                         onclick="selectTenant('${tenant.id}')">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <div style="font-weight: 600;">${tenant.display_name}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                    ${tenant.id}
+                                </div>
+                            </div>
+                            <span class="tenant-badge ${tenant.environment}">
+                                ${tenant.environment}
+                            </span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            async onTenantChanged(tenant) {
+                if (!tenant) return;
+                
+                // Mostrar loading
+                this.showLoading(true);
+                
+                // Actualizar UI del tenant actual
+                document.getElementById('current-tenant-name').textContent = tenant.display_name;
+                document.getElementById('current-tenant-badge').className = `tenant-badge ${tenant.environment}`;
+                document.getElementById('current-tenant-badge').textContent = tenant.environment;
+                
+                // Invalidar cache
+                this.apiClient.invalidateCache();
+                
+                // Recargar dashboard
+                await this.loadDashboard();
+                
+                // Ocultar loading
+                this.showLoading(false);
+                
+                // Notificación
+                this.showNotification(`Cambiado a: ${tenant.display_name}`, 'success');
+            }
+            
+            async loadDashboard() {
+                try {
+                    const summary = await this.apiClient.fetch('/api/dashboard/summary');
+                    this.renderDashboard(summary);
+                    this.updateTimestamp();
+                } catch (error) {
+                    console.error('Error loading dashboard:', error);
+                    this.showNotification('Error cargando dashboard', 'error');
+                }
+            }
+            
+            renderDashboard(data) {
+                const grid = document.getElementById('dashboard-grid');
+                
+                // Marcar cards como actualizándose
+                grid.querySelectorAll('.card').forEach(card => {
+                    card.classList.add('updating');
+                });
+                
+                setTimeout(() => {
+                    grid.innerHTML = `
+                        <!-- Métricas Principales -->
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">Facturas Abiertas</span>
+                                <span class="status ${data.tenant.status === 'active' ? 'online' : 'degraded'}">
+                                    ● ${data.tenant.status}
+                                </span>
+                            </div>
+                            <div class="card-value">${data.metrics.invoices.open}</div>
+                            <div class="card-trend trend-up">
+                                Vencidas: ${data.metrics.invoices.overdue}
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">Throughput WhatsApp</span>
+                            </div>
+                            <div class="card-value">${data.metrics.throughput.messages_per_second.toFixed(1)}</div>
+                            <div class="card-trend">
+                                <span>msgs/seg</span>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">Catálogo</span>
+                            </div>
+                            <div class="card-value">${data.metrics.catalog.size}</div>
+                            <div class="card-trend" style="color: var(--text-secondary);">
+                                SKUs activos
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <span class="card-title">Clientes Activos</span>
+                            </div>
+                            <div class="card-value">${data.metrics.customers.active}</div>
+                            <div class="card-trend trend-up">
+                                +12% este mes
+                            </div>
+                        </div>
+                        
+                        <!-- Tabla de Métricas -->
+                        <div class="card" style="grid-column: span 2;">
+                            <div class="card-header">
+                                <span class="card-title">Métricas de Rendimiento</span>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Métrica</th>
+                                        <th>Valor</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Webhooks/seg</td>
+                                        <td>${data.metrics.throughput.webhooks_per_second.toFixed(1)}</td>
+                                        <td><span class="status online">● Normal</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Delivery Rate WA</td>
+                                        <td>${(data.metrics.throughput.wa_delivery_rate * 100).toFixed(1)}%</td>
+                                        <td><span class="status ${data.metrics.throughput.wa_delivery_rate > 0.95 ? 'online' : 'degraded'}">
+                                            ● ${data.metrics.throughput.wa_delivery_rate > 0.95 ? 'Óptimo' : 'Degradado'}
+                                        </span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>P95 Latency</td>
+                                        <td>${data.metrics.throughput.p95_latency}ms</td>
+                                        <td><span class="status ${data.metrics.throughput.p95_latency < 300 ? 'online' : 'degraded'}">
+                                            ● ${data.metrics.throughput.p95_latency < 300 ? 'Rápido' : 'Lento'}
+                                        </span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Cola de Mensajes</td>
+                                        <td>${data.metrics.queues.depth}</td>
+                                        <td><span class="status ${data.metrics.queues.depth < 50 ? 'online' : 'degraded'}">
+                                            ● ${data.metrics.queues.depth < 50 ? 'Normal' : 'Alta'}
+                                        </span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>DLQ Count</td>
+                                        <td>${data.metrics.queues.dlq_count}</td>
+                                        <td><span class="status ${data.metrics.queues.dlq_count === 0 ? 'online' : 'offline'}">
+                                            ● ${data.metrics.queues.dlq_count === 0 ? 'Limpio' : 'Errores'}
+                                        </span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pipeline de Dunning -->
+                        <div class="card" style="grid-column: span 2;">
+                            <div class="card-header">
+                                <span class="card-title">Pipeline de Cobranza</span>
+                                <button class="btn" style="padding: 0.25rem 0.75rem; font-size: 0.875rem;" 
+                                        onclick="loadDunningPipeline()">
+                                    Actualizar
+                                </button>
+                            </div>
+                            <div id="dunning-pipeline">
+                                <div style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                                    Cargando pipeline...
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Cargar pipeline de dunning
+                    this.loadDunningPipeline();
+                }, 300);
+            }
+            
+            async loadDunningPipeline() {
+                try {
+                    const tenant = this.tenantStore.getTenant();
+                    if (!tenant) return;
+                    
+                    const pipeline = await this.apiClient.fetch(`/api/dunning/pipeline?tenant_id=${tenant.id}`);
+                    
+                    const pipelineDiv = document.getElementById('dunning-pipeline');
+                    pipelineDiv.innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                            ${Object.entries(pipeline.pipeline).map(([stage, invoices]) => `
+                                <div style="text-align: center;">
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                                        ${stage}
+                                    </div>
+                                    <div style="font-size: 1.5rem; font-weight: 700; color: ${this.getStageColor(stage)};">
+                                        ${invoices.length}
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                        $${invoices.reduce((sum, inv) => sum + inv.amount, 0).toFixed(0)}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                } catch (error) {
+                    console.error('Error loading dunning pipeline:', error);
+                }
+            }
+            
+            getStageColor(stage) {
+                if (stage.startsWith('T-')) return 'var(--accent-green)';
+                if (stage === 'DUE') return 'var(--accent-yellow)';
+                if (stage.startsWith('T+')) {
+                    const days = parseInt(stage.substring(2));
+                    if (days <= 7) return 'var(--accent-yellow)';
+                    return 'var(--accent-red)';
+                }
+                return 'var(--accent-red)';
+            }
+            
+            startAutoUpdate() {
+                // Actualizar cada 30 segundos
+                this.updateInterval = setInterval(() => {
+                    this.loadDashboard();
+                }, 30000);
+            }
+            
+            showLoading(show) {
+                const overlay = document.getElementById('loading-overlay');
+                if (show) {
+                    overlay.classList.remove('hidden');
+                } else {
+                    overlay.classList.add('hidden');
+                }
+            }
+            
+            showNotification(message, type = 'info') {
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+                notification.innerHTML = `
+                    <div style="font-weight: 600; margin-bottom: 0.25rem;">
+                        ${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'} 
+                        ${type === 'success' ? 'Éxito' : type === 'error' ? 'Error' : 'Info'}
+                    </div>
+                    <div>${message}</div>
+                `;
+                
+                document.body.appendChild(notification);
+                
+                setTimeout(() => {
+                    notification.style.animation = 'slideIn 0.3s ease-out reverse';
+                    setTimeout(() => notification.remove(), 300);
+                }, 3000);
+            }
+            
+            updateTimestamp() {
+                const now = new Date();
+                document.getElementById('update-time').textContent = 
+                    now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+        }
+        
+        // ==================== Inicialización ====================
+        const tenantStore = new TenantStore();
+        const apiClient = new ApiClient(tenantStore);
+        const dashboard = new DashboardController(tenantStore, apiClient);
+        
+        // Funciones globales
+        window.toggleTenantDropdown = () => {
+            const dropdown = document.getElementById('tenant-dropdown');
+            dropdown.classList.toggle('active');
+        };
+        
+        window.selectTenant = (tenantId) => {
+            const tenant = tenantStore.tenants.find(t => t.id === tenantId);
+            if (tenant) {
+                tenantStore.setTenant(tenant);
+                document.getElementById('tenant-dropdown').classList.remove('active');
+            }
+        };
+        
+        window.loadDunningPipeline = () => {
+            dashboard.loadDunningPipeline();
+        };
+        
+        window.toggleKillSwitch = () => {
+            const button = document.getElementById('kill-button');
+            const isActive = button.classList.toggle('active');
+            
+            if (isActive) {
+                button.innerHTML = 'SANDBOX<br>MODE';
+                dashboard.showNotification('Kill Switch activado - Modo Sandbox', 'info');
+            } else {
+                button.innerHTML = 'KILL<br>SWITCH';
+                dashboard.showNotification('Kill Switch desactivado - Modo Producción', 'success');
+            }
+        };
+        
+        window.setTimeMachine = async () => {
+            const date = document.getElementById('simulated-date').value;
+            if (!date) return;
+            
+            try {
+                const response = await fetch('http://localhost:8002/api/time-machine/set', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        target_date: date + 'T00:00:00',
+                        tenant_id: tenantStore.getTenant()?.id
+                    })
+                });
+                
+                const data = await response.json();
+                dashboard.showNotification(data.message, 'success');
+                
+                // Actualizar offset
+                const today = new Date();
+                const simulated = new Date(date);
+                const diffDays = Math.floor((simulated - today) / (1000 * 60 * 60 * 24));
+                document.getElementById('time-offset').textContent = `Offset: ${diffDays > 0 ? '+' : ''}${diffDays} días`;
+                
+                // Recargar dashboard
+                dashboard.loadDashboard();
+            } catch (error) {
+                dashboard.showNotification('Error configurando Time Machine', 'error');
+            }
+        };
+        
+        window.resetTimeMachine = () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('simulated-date').value = today;
+            window.setTimeMachine();
+        };
+        
+        // Cerrar dropdown al hacer clic fuera
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.tenant-switcher')) {
+                document.getElementById('tenant-dropdown').classList.remove('active');
+            }
+        });
+        
+        // Inicializar fecha actual en Time Machine
+        document.getElementById('simulated-date').value = new Date().toISOString().split('T')[0];
+        
+        // Inicializar dashboard
+        dashboard.init().then(() => {
+            console.log('✅ Control Tower V2 inicializado');
+        });
+    </script>
+</body>
+</html>

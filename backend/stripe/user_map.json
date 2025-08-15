@@ -1,0 +1,17 @@
+{
+  "created_at": "2025-07-10T11:36:45.332604",
+  "user_map": {
+    "chad": "acct_1RjO1kQDpRVkmcUQ",
+    "juan": "acct_1RjO1pQE9sOwWm5H",
+    "luis": "acct_1RjO1uQEEsXnVk8N",
+    "pedro": "acct_1RjO1z4aPTTLlB3G",
+    "maria": "acct_1RjO244R9az9pRrC",
+    "ana": "acct_1RjO7p4cuVP54tcB",
+    "carlos": "acct_1RjO7v4QLtVFSwXi",
+    "sofia": "acct_1RjO814Qt8YKkxR1",
+    "miguel": "acct_1RjO86QAdpFfajSz",
+    "elena": "acct_1RjO8C4R4uuXFxW8",
+    "roberto": "acct_1RjO8IQEEEejhamq"
+  },
+  "description": "Mapeo de nombres a Stripe IDs para comandos de voz"
+}
