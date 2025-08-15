@@ -29,11 +29,11 @@ import os
 # Imports de nuestros módulos
 from orkesta_shared_context import get_shared_context, context_manager
 from orkesta_smart_agents import orchestrator
-from stripe.connect import connect_manager
-from stripe.checkout import checkout_orchestrator
-from stripe.fees import fee_calculator
-from stripe.webhooks import webhook_processor
-from stripe.types import ChargesMode, PaymentMethod
+from orkesta_stripe.connect import connect_manager
+from orkesta_stripe.checkout import checkout_orchestrator
+from orkesta_stripe.fees import fee_calculator
+from orkesta_stripe.webhooks import webhook_processor
+from orkesta_stripe.types import ChargesMode, PaymentMethod
 
 # ==================== DEPENDENCIAS ====================
 

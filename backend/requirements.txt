@@ -1,0 +1,41 @@
+# Core Framework
+fastapi
+uvicorn[standard]
+pydantic
+
+# Database
+sqlalchemy
+
+# AI/LLM
+openai>=1.6.1
+groq
+langchain
+langchain-openai
+
+# Payment Processing
+stripe
+
+# Authentication & Security
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+
+# HTTP & Async
+httpx
+aiohttp
+requests
+
+# Data Processing
+pandas
+python-dateutil
+
+# Environment & Config
+python-dotenv
+
+# Testing
+pytest
+pytest-asyncio
+
+# Utils
+python-json-logger
+rich

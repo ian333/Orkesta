@@ -1,0 +1,146 @@
+{
+  "tenant_id": "test-tenant",
+  "version": "2025-08-14T18:35:10.833910",
+  "org_profile": {
+    "display_name": "Tenant test-tenant",
+    "industry": "retail/b2b",
+    "created_at": "2025-08-14T18:35:10.833852"
+  },
+  "connect": {
+    "account_id": "acct_test123",
+    "pricing_mode": "platform_handles_pricing",
+    "charges_mode": "direct",
+    "payout_schedule": "weekly",
+    "fee_policy": {
+      "application_fee_pct": 0.6,
+      "application_fee_fixed": 2
+    },
+    "onboarding_complete": false,
+    "capabilities_active": []
+  },
+  "catalog": {
+    "version": "2025-08-14T18:35:10.833854",
+    "products": {
+      "p_tubo_pvc_001": {
+        "product_id": "p_tubo_pvc_001",
+        "sku": "TUBO-PVC-19MM-SCH40",
+        "aliases": [
+          "tubo pvc 3/4",
+          "pvc 19mm",
+          "tubo 3/4 pulgada"
+        ],
+        "name": "Tubo PVC 19mm SCH40",
+        "brand": "AquaFlow",
+        "unit": "pieza",
+        "attributes": {
+          "largo": "6m",
+          "cedula": "40",
+          "color": "blanco"
+        },
+        "pricing": {
+          "lists": {
+            "lista_base": {
+              "MXN": 85.0,
+              "iva_pct": 16
+            }
+          },
+          "overrides": [],
+          "currency": "MXN"
+        },
+        "stock": {
+          "default": 240,
+          "reorder_point": 50
+        },
+        "active": true,
+        "created_at": "2025-08-14 18:35:10.833870",
+        "updated_at": "2025-08-14 18:35:10.833871"
+      }
+    },
+    "aliases_index": {
+      "tubo pvc 3/4": "p_tubo_pvc_001",
+      "pvc 19mm": "p_tubo_pvc_001",
+      "tubo 3/4 pulgada": "p_tubo_pvc_001",
+      "tubo-pvc-19mm-sch40": "p_tubo_pvc_001"
+    },
+    "mapping_templates": {}
+  },
+  "clients": {
+    "c_taller_pepe": {
+      "client_id": "c_taller_pepe",
+      "name": "Taller Pepe",
+      "phones": [
+        "+5255123456789"
+      ],
+      "emails": [
+        "pepe@taller.mx"
+      ],
+      "tags": [
+        "vip",
+        "construccion"
+      ],
+      "optins": {
+        "wa": true,
+        "sms": true,
+        "email": true
+      },
+      "preferences": {},
+      "created_at": "2025-08-14 18:35:10.833878"
+    }
+  },
+  "orders": {
+    "ORD-20250814-183510-0000": {
+      "order_id": "ORD-20250814-183510-0000",
+      "tenant_id": "test-tenant",
+      "client_id": "c_taller_pepe",
+      "status": "draft",
+      "items": [
+        {
+          "product_id": "p_tubo_pvc_001",
+          "sku": "TUBO-PVC-19MM-SCH40",
+          "name": "Tubo PVC 19mm SCH40",
+          "quantity": 5,
+          "unit_price": 85.0,
+          "unit_price_list": 85.0,
+          "total_price": 425.0,
+          "discount_applied": 0.0
+        }
+      ],
+      "subtotal": 425.0,
+      "tax_amount": 68.0,
+      "total_amount": 493.0,
+      "created_at": "2025-08-14 18:35:10.833896",
+      "updated_at": "2025-08-14 18:35:10.833909",
+      "expires_at": null,
+      "payment_intent_id": null,
+      "checkout_url": null,
+      "notes": "",
+      "agent_context": {
+        "created_by": "SalesAgent"
+      }
+    }
+  },
+  "invoices": {},
+  "ledger": {
+    "journal_cursor": 0,
+    "entries": {}
+  },
+  "agent_suggestions": {},
+  "policies": {
+    "messaging": {
+      "dnd_hours": {
+        "start": 23,
+        "end": 7
+      },
+      "one_per_24h_per_debt_per_channel": true,
+      "max_attempts_per_stage": 3,
+      "fallback_sequence": [
+        "whatsapp",
+        "sms",
+        "email"
+      ]
+    },
+    "reserve_ttl_minutes": 20,
+    "auto_approve_threshold": 0.85,
+    "max_order_amount": 50000
+  }
+}

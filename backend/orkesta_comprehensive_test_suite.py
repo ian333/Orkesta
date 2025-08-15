@@ -28,8 +28,8 @@ import string
 from orkesta_shared_context import get_shared_context, OrkestaSharedContext
 from orkesta_smart_agents import CatalogMapperAgent, AliasNormalizerAgent, PriceResolverAgent, QuoteBuilderAgent
 from orkesta_conversation_flows import conversation_engine, ConversationStage, ConversationIntent
-from stripe.testing import stripe_test_suite
-from stripe.types import ChargesMode, PaymentMethod
+from orkesta_stripe.testing import stripe_test_suite
+from orkesta_stripe.types import ChargesMode, PaymentMethod
 
 logger = logging.getLogger(__name__)
 
