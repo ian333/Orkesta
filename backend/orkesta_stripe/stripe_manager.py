@@ -31,7 +31,7 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "sk_test_YOUR_STRIPE_KEY_HERE")
 
 class StripeManager:
     def __init__(self):
-        self.accounts_file = "stripe/accounts.json"
+        self.accounts_file = "orkesta_stripe/accounts.json"
         
     def create_verified_us_account(self, name, email, first_name, last_name):
         """Crear cuenta US completamente verificada automáticamente"""
@@ -156,7 +156,7 @@ class StripeManager:
                     "description": descriptions[i] if i < len(descriptions) else "Cliente de prueba"
                 })
         
-        os.makedirs("stripe", exist_ok=True)
+        os.makedirs("orkesta_stripe", exist_ok=True)
         with open(self.accounts_file, 'w') as f:
             json.dump(data, f, indent=2)
             

@@ -1,128 +1,60 @@
 {
-  "created_at": "2025-07-10T10:13:22.072892",
-  "updated_at": "2025-07-10T10:24:56.779490",
-  "total_accounts": 11,
+  "created_at": "2025-08-14T18:45:30.224970",
   "accounts": [
     {
-      "id": "acct_1RjO1kQDpRVkmcUQ",
+      "id": "acct_1RwBlSA1vpFegaVf",
       "name": "Chad Martinez",
       "email": "chad@cobrazo.mx",
       "country": "US",
-      "charges_enabled": true,
-      "payouts_enabled": true,
-      "transfers_active": true,
-      "balance": 2500,
-      "description": "Chad - CEO Startup Tech, paga servicios desarrollo"
+      "charges_enabled": false,
+      "payouts_enabled": false,
+      "transfers_active": false,
+      "balance": 1000,
+      "description": "Chad - Cliente que paga a Juan semanalmente"
     },
     {
-      "id": "acct_1RjO1pQE9sOwWm5H",
+      "id": "acct_1RwBlXAYfMNMn7If",
       "name": "Juan Perez",
       "email": "juan@cobrazo.mx",
       "country": "US",
-      "charges_enabled": true,
-      "payouts_enabled": true,
-      "transfers_active": true,
-      "balance": 2910.0,
-      "description": "Juan - Desarrollador Full Stack, recibe pagos por proyectos"
+      "charges_enabled": false,
+      "payouts_enabled": false,
+      "transfers_active": false,
+      "balance": 500,
+      "description": "Juan - Recibe pagos de Chad, pinta casas"
     },
     {
-      "id": "acct_1RjO1uQEEsXnVk8N",
+      "id": "acct_1RwBldPCJs5eAl91",
       "name": "Luis Garcia",
       "email": "luis@cobrazo.mx",
       "country": "US",
-      "charges_enabled": true,
-      "payouts_enabled": true,
-      "transfers_active": true,
-      "balance": 2800.0,
-      "description": "Luis - Consultor de Marketing Digital, facturas mensuales"
+      "charges_enabled": false,
+      "payouts_enabled": false,
+      "transfers_active": false,
+      "balance": 750,
+      "description": "Luis - Pide pagos a Pedro semanalmente"
     },
     {
-      "id": "acct_1RjO1z4aPTTLlB3G",
+      "id": "acct_1RwBljPMBxMcILbB",
       "name": "Pedro Ramirez",
       "email": "pedro@cobrazo.mx",
       "country": "US",
-      "charges_enabled": true,
-      "payouts_enabled": true,
-      "transfers_active": true,
-      "balance": 3150.0,
-      "description": "Pedro - Arquitecto de Software, pagos de consultoría"
+      "charges_enabled": false,
+      "payouts_enabled": false,
+      "transfers_active": false,
+      "balance": 1200,
+      "description": "Pedro - Paga a Luis semanalmente"
     },
     {
-      "id": "acct_1RjO244R9az9pRrC",
+      "id": "acct_1RwBloAGuqNiGaLJ",
       "name": "Maria Lopez",
       "email": "maria@cobrazo.mx",
       "country": "US",
-      "charges_enabled": true,
-      "payouts_enabled": true,
-      "transfers_active": true,
-      "balance": 4404.23,
-      "description": "Maria - Directora de Proyectos, gestiona pagos de equipo"
-    },
-    {
-      "id": "acct_1RjO7p4cuVP54tcB",
-      "name": "Ana Rodriguez",
-      "email": "ana@cobrazo.mx",
-      "country": "US",
-      "charges_enabled": true,
-      "payouts_enabled": true,
-      "transfers_active": true,
-      "balance": 3100.0,
-      "description": "Ana - Experta en Marketing Digital, campañas premium"
-    },
-    {
-      "id": "acct_1RjO7v4QLtVFSwXi",
-      "name": "Carlos Mendoza",
-      "email": "carlos@cobrazo.mx",
-      "country": "US",
-      "charges_enabled": true,
-      "payouts_enabled": true,
-      "transfers_active": true,
-      "balance": 1975.0,
-      "description": "Carlos - E-commerce Manager, ventas en línea"
-    },
-    {
-      "id": "acct_1RjO814Qt8YKkxR1",
-      "name": "Sofia Herrera",
-      "email": "sofia@cobrazo.mx",
-      "country": "US",
-      "charges_enabled": true,
-      "payouts_enabled": true,
-      "transfers_active": true,
-      "balance": 2700,
-      "description": "Sofia - Creative Director, branding corporativo"
-    },
-    {
-      "id": "acct_1RjO86QAdpFfajSz",
-      "name": "Miguel Torres",
-      "email": "miguel@cobrazo.mx",
-      "country": "US",
-      "charges_enabled": true,
-      "payouts_enabled": true,
-      "transfers_active": true,
-      "balance": 2400,
-      "description": "Miguel - Senior DevOps Engineer, infraestructura cloud"
-    },
-    {
-      "id": "acct_1RjO8C4R4uuXFxW8",
-      "name": "Elena Morales",
-      "email": "elena@cobrazo.mx",
-      "country": "US",
-      "charges_enabled": true,
-      "payouts_enabled": true,
-      "transfers_active": true,
-      "balance": 3545.0,
-      "description": "Elena - Business Strategy Consultant, transformación digital"
-    },
-    {
-      "id": "acct_1RjO8IQEEEejhamq",
-      "name": "Roberto Silva",
-      "email": "roberto@cobrazo.mx",
-      "country": "US",
-      "charges_enabled": true,
-      "payouts_enabled": true,
-      "transfers_active": true,
-      "balance": 2700.0,
-      "description": "Roberto - Visual Content Producer, fotografía comercial"
+      "charges_enabled": false,
+      "payouts_enabled": false,
+      "transfers_active": false,
+      "balance": 800,
+      "description": "Maria - Cliente de prueba para transacciones"
     }
   ]
 }

@@ -33,7 +33,7 @@ from orkesta_stripe.connect import connect_manager
 from orkesta_stripe.checkout import checkout_orchestrator
 from orkesta_stripe.fees import fee_calculator
 from orkesta_stripe.webhooks import webhook_processor
-from orkesta_stripe.types import ChargesMode, PaymentMethod
+from orkesta_stripe.stripe_types import ChargesMode, PaymentMethod
 
 # ==================== DEPENDENCIAS ====================
 

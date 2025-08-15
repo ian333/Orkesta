@@ -1,0 +1,41 @@
+{
+  "created_at": "2025-08-14T18:49:12.623006",
+  "total_accounts": 5,
+  "links": [
+    {
+      "account_id": "acct_1RwBlSA1vpFegaVf",
+      "account_name": "Chad Martinez",
+      "onboarding_url": "https://connect.stripe.com/setup/c/acct_1RwBlSA1vpFegaVf/eQF4aySyponV",
+      "expires_at": 1755219251,
+      "created_at": "2025-08-14T18:49:11.016668"
+    },
+    {
+      "account_id": "acct_1RwBlXAYfMNMn7If",
+      "account_name": "Juan Perez",
+      "onboarding_url": "https://connect.stripe.com/setup/c/acct_1RwBlXAYfMNMn7If/3mZtsggi5lIJ",
+      "expires_at": 1755219251,
+      "created_at": "2025-08-14T18:49:11.405887"
+    },
+    {
+      "account_id": "acct_1RwBldPCJs5eAl91",
+      "account_name": "Luis Garcia",
+      "onboarding_url": "https://connect.stripe.com/setup/c/acct_1RwBldPCJs5eAl91/SGxtSUniNx1A",
+      "expires_at": 1755219251,
+      "created_at": "2025-08-14T18:49:11.771499"
+    },
+    {
+      "account_id": "acct_1RwBljPMBxMcILbB",
+      "account_name": "Pedro Ramirez",
+      "onboarding_url": "https://connect.stripe.com/setup/c/acct_1RwBljPMBxMcILbB/BFMH4qp4PMov",
+      "expires_at": 1755219252,
+      "created_at": "2025-08-14T18:49:12.128133"
+    },
+    {
+      "account_id": "acct_1RwBloAGuqNiGaLJ",
+      "account_name": "Maria Lopez",
+      "onboarding_url": "https://connect.stripe.com/setup/c/acct_1RwBloAGuqNiGaLJ/F7sUyd9brBYk",
+      "expires_at": 1755219252,
+      "created_at": "2025-08-14T18:49:12.622991"
+    }
+  ]
+}

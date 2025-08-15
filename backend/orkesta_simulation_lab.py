@@ -27,7 +27,7 @@ from orkesta_shared_context import get_shared_context, OrkestaSharedContext
 from orkesta_smart_agents import CatalogMapperAgent, AliasNormalizerAgent, PriceResolverAgent, QuoteBuilderAgent
 from orkesta_conversation_flows import conversation_engine, ConversationStage, ConversationIntent
 from orkesta_comprehensive_test_suite import comprehensive_test_suite
-from orkesta_stripe.types import ChargesMode, PaymentMethod, FeePolicy
+from orkesta_stripe.stripe_types import ChargesMode, PaymentMethod, FeePolicy
 from orkesta_stripe.checkout import checkout_orchestrator
 from orkesta_stripe.fees import fee_calculator
 
