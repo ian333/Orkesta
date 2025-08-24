@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: orkesta_postgres
+    environment:
+      POSTGRES_DB: orkesta
+      POSTGRES_USER: orkesta
+      POSTGRES_PASSWORD: orkesta_password_2024
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init:/docker-entrypoint-initdb.d
+    command: postgres -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=all
+    restart: unless-stopped
+    
+  redis:
+    image: redis:7-alpine
+    container_name: orkesta_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    
+  pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    container_name: orkesta_pgbouncer
+    environment:
+      DATABASES_HOST: postgres
+      DATABASES_PORT: 5432
+      DATABASES_USER: orkesta
+      DATABASES_PASSWORD: orkesta_password_2024
+      DATABASES_DBNAME: orkesta
+      POOL_MODE: transaction
+      SERVER_RESET_QUERY: DISCARD ALL
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 25
+    ports:
+      - "6432:5432"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

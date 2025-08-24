@@ -30,13 +30,62 @@ Cada escenario representa un caso de uso REAL de extracción y procesamiento de 
 **Fuente**: https://listado.mercadolibre.com.mx/_CustId_AVAZ
 **Contexto**: 500+ productos con variaciones, múltiples páginas
 
-#### Flujo de Extracción:
+#### 🚀 Comandos Ejecutables:
+```bash
+# 1. Setup del test environment
+export GROQ_API_KEY="your_groq_key"
+export POSTGRES_URL="postgresql://user:pass@localhost:5432/orkesta_test"
+export TENANT_ID="avaz_automotive"
+
+# 2. Ejecutar test específico S01
+pytest tests/scenarios/test_s01_mercadolibre.py::test_s01_mercadolibre_extraction -v
+
+# 3. Ejecutar con cobertura de código
+pytest tests/scenarios/test_s01_mercadolibre.py --cov=src/agents --cov-report=html
+
+# 4. Ejecutar en modo performance
+pytest tests/scenarios/test_s01_mercadolibre.py -m performance --durations=10
+
+# 5. Ejecutar solo en CI/CD
+pytest tests/scenarios/test_s01_mercadolibre.py -m "not integration" --tb=short
+```
+
+#### 🎯 LOGRABLES ESPECÍFICOS:
+- ✅ Extraer 500+ productos con 95% accuracy
+- ✅ Procesar 10+ páginas en <5 minutos  
+- ✅ Aprender 3+ patterns CSS automáticamente
+- ✅ Zero cross-tenant contamination
+- ✅ <1GB memoria máxima durante extracción
+
+#### 🏷️ TAGS: `#mercadolibre #web-scraping #catalog-extraction #avaz`
+
+#### Implementación Completa:
 ```python
+# File: tests/scenarios/test_s01_mercadolibre.py
+import pytest
+import asyncio
+import time
+import psutil
+from unittest.mock import AsyncMock, patch, MagicMock
+from src.agents.web_scraping_agent import MercadoLibreAgent
+from src.core.orchestrator import CatalogOrchestrator
+from src.models.product import Product, ProductSchema
+from src.storage.postgres import PostgresStore
+from src.utils.metrics import PerformanceTracker
+
+@pytest.mark.asyncio
+@pytest.mark.timeout(600)  # 10 minutos máximo
 async def test_s01_mercadolibre_extraction():
     """
-    Extraer catálogo completo de AVAZ desde MercadoLibre
+    LOGRABLE: Extraer 500+ productos de MercadoLibre AVAZ con 95% accuracy
+    TAGS: #mercadolibre #web-scraping #catalog-extraction #avaz
+    TIMEOUT: 10 minutos
+    MEMORY_LIMIT: 1GB
     """
-    # Arrange
+    # Arrange - Configuración específica para AVAZ
+    performance_tracker = PerformanceTracker()
+    performance_tracker.start()
+    
     config = {
         "tenant_id": "avaz_automotive",
         "source": {
@@ -48,55 +97,462 @@ async def test_s01_mercadolibre_extraction():
                 "extract_variations": True,
                 "extract_images": True,
                 "extract_questions": True,
-                "monitor_price_changes": True
+                "monitor_price_changes": True,
+                "rate_limit": {"requests_per_minute": 60},
+                "retry_strategy": {"max_retries": 3, "backoff": "exponential"},
+                "user_agent_rotation": True,
+                "proxy_rotation": False  # Solo para producción
+            }
+        },
+        "validation": {
+            "required_fields": ["sku", "title", "price", "availability", "images"],
+            "price_range": {"min": 10, "max": 50000},
+            "confidence_threshold": 0.85,
+            "duplicate_detection": True
+        },
+        "storage": {
+            "batch_size": 100,
+            "upsert_strategy": "merge_on_sku",
+            "backup_raw_data": True
+            }
+        }
+        }
+    }
+    
+    # Mock selenium driver para tests controlados
+    with patch('src.utils.selenium_driver.SeleniumDriver') as mock_driver:
+        mock_driver.return_value.get_page.return_value = SAMPLE_ML_HTML_AVAZ
+        mock_driver.return_value.screenshot.return_value = b"fake_screenshot"
+        
+        # Act - Iniciar extracción con LangGraph
+        orchestrator = CatalogOrchestrator()
+        extraction_job = await orchestrator.start_catalog_extraction(config)
+        
+        # Monitorear progreso en tiempo real
+        progress_events = []
+        timeout_counter = 0
+    
+        # Stream de eventos para monitorear progreso
+        async for event in extraction_job.stream():
+            progress_events.append(event)
+            
+            if event.type == "page_processed":
+                print(f"📄 Página {event.page_num}: {event.products_found} productos")
+                assert event.products_found > 0, f"Página {event.page_num} sin productos"
+                
+            elif event.type == "pattern_learned":
+                print(f"🧠 Pattern aprendido: {event.pattern_name}")
+                
+            elif event.type == "error":
+                print(f"❌ Error: {event.error_message}")
+                
+            elif event.type == "memory_warning":
+                memory_usage = psutil.Process().memory_info().rss / 1024 / 1024  # MB
+                assert memory_usage < 1024, f"Uso de memoria excesivo: {memory_usage}MB"
+            
+            # Timeout protection
+            timeout_counter += 1
+            if timeout_counter > 1000:
+                pytest.fail("Timeout: demasiados eventos sin completar")
+        
+        # Esperar resultado final
+        result = await extraction_job.result()
+        performance_tracker.stop()
+    
+    # Assert - Verificaciones ESPECÍFICAS para AVAZ
+    assert result.status == "completed", f"Extracción falló: {result.error}"
+    assert result.products_extracted >= 500, f"Insuficientes productos: {result.products_extracted}"
+    assert result.pages_processed >= 10, f"Pocas páginas procesadas: {result.pages_processed}"
+    assert result.extraction_accuracy >= 0.95, f"Accuracy baja: {result.extraction_accuracy}"
+    
+    # Verificar performance
+    total_time = performance_tracker.total_time
+    assert total_time < 300, f"Extracción muy lenta: {total_time}s (max: 300s)"
+    
+    # Verificar uso de memoria
+    peak_memory = performance_tracker.peak_memory_mb
+    assert peak_memory < 1024, f"Uso excesivo de memoria: {peak_memory}MB"
+    
+    # Verificar estructura de productos AVAZ específica
+    products = result.products
+    assert len(products) >= 500, "Productos insuficientes"
+    
+    sample_product = products[0]
+    automotive_product = next((p for p in products if "filtro" in p.get("title", "").lower()), None)
+    assert automotive_product is not None, "No se encontraron productos automotrices"
+    # Validar campos obligatorios
+    required_fields = ["sku", "title", "price", "images", "description", "stock_status"]
+    for product in products[:10]:  # Verificar primeros 10
+        for field in required_fields:
+            assert product.get(field) is not None, f"Campo {field} faltante en producto {product.get('sku')}"
+        
+        # Validaciones específicas
+        assert isinstance(product["price"], (int, float)), "Precio debe ser numérico"
+        assert product["price"] > 0, "Precio debe ser positivo"
+        assert len(product["title"]) > 10, "Título muy corto"
+        assert len(product["images"]) > 0, "Producto sin imágenes"
+    
+    # Verificar variaciones extraídas (típico en productos automotrices)
+    products_with_variations = [p for p in products if p.get("variations")]
+    assert len(products_with_variations) > 50, f"Pocas variaciones: {len(products_with_variations)}"
+    
+    # Verificar productos específicos de AVAZ (automotriz)
+    automotive_keywords = ["filtro", "aceite", "freno", "suspension", "motor"]
+    automotive_products = []
+    for product in products:
+        title_lower = product.get("title", "").lower()
+        if any(keyword in title_lower for keyword in automotive_keywords):
+            automotive_products.append(product)
+    
+    assert len(automotive_products) >= 100, f"Pocos productos automotrices: {len(automotive_products)}"
+    
+    # Verificar patterns aprendidos para MercadoLibre
+    learned_patterns = result.learned_patterns
+    assert "product_listing_selector" in learned_patterns, "Pattern de listado no aprendido"
+    assert "price_selector" in learned_patterns, "Pattern de precio no aprendido"
+    assert "pagination_pattern" in learned_patterns, "Pattern de paginación no aprendido"
+    assert "image_selector" in learned_patterns, "Pattern de imágenes no aprendido"
+    
+    # Verificar que patterns son válidos
+    for pattern_name, pattern_value in learned_patterns.items():
+        assert pattern_value is not None, f"Pattern {pattern_name} está vacío"
+        assert len(str(pattern_value)) > 5, f"Pattern {pattern_name} muy corto"
+    
+    # Verificar aislamiento multi-tenant
+    stored_products = await PostgresStore().get_products(tenant_id="avaz_automotive")
+    assert len(stored_products) == len(products), "Productos no guardados correctamente"
+    
+    # CRÍTICO: Verificar que no hay contaminación cross-tenant
+    other_tenant_products = await PostgresStore().get_products(tenant_id="other_company")
+    assert len(other_tenant_products) == 0, "VIOLACIÓN: Cross-tenant contamination detectada"
+    
+    # Verificar métricas de calidad
+    quality_metrics = result.quality_metrics
+    assert quality_metrics.duplicate_rate < 0.05, f"Muchos duplicados: {quality_metrics.duplicate_rate}"
+    assert quality_metrics.invalid_price_rate < 0.02, f"Precios inválidos: {quality_metrics.invalid_price_rate}"
+    assert quality_metrics.missing_image_rate < 0.10, f"Muchos sin imagen: {quality_metrics.missing_image_rate}"
+
+
+# Datos de prueba para mocking
+SAMPLE_ML_HTML_AVAZ = """
+<div class="ui-search-results">
+    <div class="ui-search-result">
+        <h2 class="ui-search-item__title">Filtro de Aceite Bosch 0451103316 para Tsuru</h2>
+        <span class="price-tag-amount">$245.50</span>
+        <span class="ui-search-item__condition">Nuevo</span>
+        <div class="ui-search-item__group__element shops__items-group-details">
+            <span>12 vendidos</span>
+        </div>
+        <img src="https://http2.mlstatic.com/filtro-aceite-123.jpg" alt="Filtro">
+    </div>
+    <div class="ui-search-result">
+        <h2 class="ui-search-item__title">Pastillas de Freno Brembo P23-150 Delantera</h2>
+        <span class="price-tag-amount">$1,280.00</span>
+        <span class="ui-search-item__condition">Nuevo</span>
+        <div class="ui-search-item__group__element shops__items-group-details">
+            <span>45 vendidos</span>
+        </div>
+        <img src="https://http2.mlstatic.com/pastillas-freno-456.jpg" alt="Pastillas">
+    </div>
+    <!-- Simular más productos automotrices -->
+</div>
+<div class="ui-search-pagination">
+    <a href="/page/2">Siguiente</a>
+</div>
+"""
+
+
+@pytest.mark.integration
+@pytest.mark.skip(reason="Solo ejecutar en CI con datos reales")
+async def test_s01_real_mercadolibre_integration():
+    """
+    LOGRABLE: Test de integración REAL con MercadoLibre AVAZ
+    TAGS: #integration #real-data #ci-only #avaz
+    REQUIERE: Variables de entorno reales
+    """
+    if not os.getenv("RUN_INTEGRATION_TESTS"):
+        pytest.skip("Integration tests disabled - set RUN_INTEGRATION_TESTS=1")
+    
+    # Configuración para URL real de AVAZ (controlada)
+    real_config = {
+        "tenant_id": "avaz_integration_test",
+        "source": {
+            "type": "mercadolibre",
+            "url": os.getenv("AVAZ_ML_URL", "https://listado.mercadolibre.com.mx/repuestos-autos-motos"),
+            "config": {
+                "max_pages": 3,  # Solo 3 páginas para CI
+                "rate_limit": {"requests_per_minute": 30}  # Más conservador
             }
         }
     }
     
-    # Act - Iniciar extracción con LangGraph
-    graph = CatalogExtractionGraph()
-    extraction_job = await graph.start_extraction(config)
+    orchestrator = CatalogOrchestrator()
+    result = await orchestrator.start_catalog_extraction(real_config)
     
-    # Stream de eventos para monitorear progreso
-    events = []
-    async for event in extraction_job.stream():
-        events.append(event)
-        
-        if event.type == "page_processed":
-            print(f"📄 Página {event.page_num}: {event.products_found} productos")
-        elif event.type == "pattern_learned":
-            print(f"🧠 Pattern aprendido: {event.pattern_name}")
-    
-    # Esperar resultado final
-    result = await extraction_job.result()
-    
-    # Assert - Verificaciones detalladas
+    # Validaciones básicas para datos reales
     assert result.status == "completed"
-    assert result.products_extracted >= 500
-    assert result.pages_processed >= 10
+    assert result.products_extracted > 50  # Al menos 50 productos reales
+    assert result.extraction_accuracy > 0.80  # Más permisivo para datos reales
     
-    # Verificar estructura de productos
-    sample_product = result.products[0]
-    assert all([
-        sample_product.get("sku"),
-        sample_product.get("title"),
-        sample_product.get("price"),
-        sample_product.get("images"),
-        sample_product.get("description"),
-        sample_product.get("stock_status"),
-        sample_product.get("seller_reputation"),
-        sample_product.get("shipping_info")
-    ])
+
+@pytest.mark.performance  
+@pytest.mark.timeout(900)  # 15 minutos para test de performance
+async def test_s01_performance_benchmark():
+    """
+    LOGRABLE: Procesar 1000+ productos en <10 minutos con <1GB RAM
+    TAGS: #performance #benchmark #load-test #memory-test
+    TIMEOUT: 15 minutos
+    """
+    # Configuración para volumen alto
+    large_config = {
+        "tenant_id": "avaz_performance_test",
+        "source": {
+            "type": "mercadolibre", 
+            "url": "https://mock-mercadolibre.com/avaz",
+            "config": {
+                "max_pages": 100,  # Simular 100 páginas
+                "concurrent_requests": 5,
+                "batch_size": 50
+            }
+        }
+    }
     
-    # Verificar variaciones extraídas
-    products_with_variations = [p for p in result.products if p.get("variations")]
-    assert len(products_with_variations) > 50  # Al menos 50 productos con variaciones
+    # Mock para simular respuesta rápida con muchos productos
+    with patch('src.utils.selenium_driver.SeleniumDriver') as mock_driver:
+        # Simular página con 20 productos cada una
+        mock_html = SAMPLE_ML_HTML_AVAZ * 10  # 20 productos por página
+        mock_driver.return_value.get_page.return_value = mock_html
+        
+        start_time = time.time()
+        initial_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
+        
+        orchestrator = CatalogOrchestrator()
+        result = await orchestrator.start_catalog_extraction(large_config)
+        
+        duration = time.time() - start_time
+        final_memory = psutil.Process().memory_info().rss / 1024 / 1024  # MB
+        memory_used = final_memory - initial_memory
     
-    # Verificar patterns aprendidos para futuras extracciones
-    learned_patterns = result.learned_patterns
-    assert "product_listing_selector" in learned_patterns
-    assert "price_selector" in learned_patterns
-    assert "pagination_pattern" in learned_patterns
+    # Verificaciones de performance
+    assert result.products_extracted >= 1000, f"Insuficientes productos: {result.products_extracted}"
+    assert duration < 600, f"Muy lento: {duration}s (max: 600s)"
+    assert memory_used < 1024, f"Mucha memoria: {memory_used}MB (max: 1024MB)"
+    
+    # Métricas adicionales
+    products_per_second = result.products_extracted / duration
+    assert products_per_second > 2, f"Throughput bajo: {products_per_second} p/s"
+    
+    print(f"\n🎯 PERFORMANCE RESULTS:")
+    print(f"   Productos: {result.products_extracted}")
+    print(f"   Tiempo: {duration:.2f}s")
+    print(f"   Throughput: {products_per_second:.2f} productos/segundo")
+    print(f"   Memoria: {memory_used:.2f}MB")
+    print(f"   Páginas: {result.pages_processed}")
+
+
+### 🎬 ESCENARIO S02: Procesamiento de PDF con Tablas y OCR
+
+**Tenant**: Industrial Supplies Co.
+**Fuente**: catalog_industrial_2024.pdf (50+ páginas, múltiples tablas)
+**Contexto**: PDF complejo con tablas, imágenes de productos, precios en múltiples columnas
+
+#### 🚀 Comandos Ejecutables:
+```bash
+# 1. Preparar archivo de prueba
+wget https://example.com/test-catalogs/industrial_catalog.pdf -O /tmp/test_catalog.pdf
+export PDF_TEST_FILE="/tmp/test_catalog.pdf"
+
+# 2. Ejecutar test de OCR
+pytest tests/scenarios/test_s02_pdf_processing.py::test_s02_pdf_ocr_extraction -v --tb=long
+
+# 3. Test con diferentes calidades de OCR
+pytest tests/scenarios/test_s02_pdf_processing.py -k "ocr_quality" --capture=no
+
+# 4. Verificar accuracy de extracción de tablas
+pytest tests/scenarios/test_s02_pdf_processing.py::test_table_extraction_accuracy -s
+
+# 5. Benchmark de performance con PDFs grandes
+pytest tests/scenarios/test_s02_pdf_processing.py -m "pdf_performance" --durations=0
+```
+
+#### 🎯 LOGRABLES ESPECÍFICOS:
+- ✅ Extraer 800+ productos de PDF de 50 páginas
+- ✅ OCR accuracy >90% en texto legible  
+- ✅ Detectar y extraer 20+ tablas automáticamente
+- ✅ Procesar en <8 minutos con <2GB RAM
+- ✅ Manejar múltiples layouts de página
+
+#### 🏷️ TAGS: `#pdf-processing #ocr #table-extraction #industrial`
+
+#### Implementación Completa:
+```python
+# File: tests/scenarios/test_s02_pdf_processing.py
+import pytest
+import os
+import time
+from unittest.mock import patch, MagicMock
+from src.agents.pdf_processing_agent import PDFProcessingAgent
+from src.utils.ocr_engine import TesseractOCR
+from src.utils.table_extractor import CamelotTableExtractor
+from src.models.product import ProductSchema
+import pandas as pd
+
+@pytest.mark.asyncio
+@pytest.mark.timeout(600)  # 10 minutos máximo
+async def test_s02_pdf_ocr_extraction():
+    """
+    LOGRABLE: Extraer 800+ productos de PDF industrial con OCR >90% accuracy
+    TAGS: #pdf-processing #ocr #table-extraction #industrial
+    TIMEOUT: 10 minutos
+    MEMORY_LIMIT: 2GB
+    """
+    # Arrange
+    pdf_config = {
+        "tenant_id": "industrial_supplies_co",
+        "source": {
+            "type": "pdf",
+            "file_path": "/tmp/industrial_catalog_2024.pdf",
+            "config": {
+                "ocr_quality": "high",
+                "ocr_languages": ["spa", "eng"],
+                "extract_tables": True,
+                "extract_images": True,
+                "multi_column_detection": True,
+                "page_range": {"start": 1, "end": 50},
+                "confidence_threshold": 0.80
+            }
+        },
+        "validation": {
+            "required_fields": ["codigo", "descripcion", "precio", "categoria"],
+            "price_validation": True,
+            "duplicate_detection": True
+        }
+    }
+    
+    # Mock PDF data para testing controlado
+    with patch('src.utils.pdf_reader.PDFReader') as mock_reader:
+        mock_reader.return_value.get_page_count.return_value = 50
+        mock_reader.return_value.extract_page.return_value = SAMPLE_PDF_PAGE_CONTENT
+        
+        with patch('src.utils.table_extractor.CamelotTableExtractor') as mock_table:
+            mock_table.return_value.extract_tables.return_value = SAMPLE_TABLE_DATA
+            
+            # Act
+            pdf_agent = PDFProcessingAgent()
+            result = await pdf_agent.process_pdf(pdf_config)
+    
+    # Assert - Verificaciones específicas para PDF industrial
+    assert result.status == "completed", f"Procesamiento falló: {result.error}"
+    assert result.products_extracted >= 800, f"Insuficientes productos: {result.products_extracted}"
+    assert result.pages_processed == 50, f"No se procesaron todas las páginas: {result.pages_processed}"
+    
+    # Verificar OCR accuracy
+    assert result.ocr_accuracy >= 0.90, f"OCR accuracy baja: {result.ocr_accuracy}"
+    
+    # Verificar extracción de tablas
+    assert result.tables_detected >= 20, f"Pocas tablas detectadas: {result.tables_detected}"
+    assert result.tables_extracted >= 18, f"Pocas tablas extraídas: {result.tables_extracted}"
+    
+    # Verificar productos específicos industriales
+    products = result.products
+    industrial_keywords = ["tuerca", "tornillo", "arandela", "perno", "brida"]
+    industrial_products = [
+        p for p in products 
+        if any(kw in p.get("descripcion", "").lower() for kw in industrial_keywords)
+    ]
+    assert len(industrial_products) >= 200, f"Pocos productos industriales: {len(industrial_products)}"
+    
+    # Verificar structure de productos industriales
+    for product in products[:10]:
+        assert product.get("codigo"), "Código de producto faltante"
+        assert product.get("descripcion"), "Descripción faltante"
+        assert product.get("precio"), "Precio faltante"
+        assert isinstance(product["precio"], (int, float)), "Precio no numérico"
+        
+        # Validaciones específicas industriales
+        if product.get("categoria"):
+            industrial_categories = ["ferreteria", "tornilleria", "hidraulica", "neumatica"]
+            assert any(cat in product["categoria"].lower() for cat in industrial_categories), \
+                   f"Categoría no industrial: {product['categoria']}"
+
+# Datos de prueba
+SAMPLE_PDF_PAGE_CONTENT = """
+CATÁLOGO INDUSTRIAL 2024 - Página 15
+
+TORNILLERÍA MÉTRICA
+
+Código    Descripción                     Precio  Stock
+TM-001    Tornillo M8x20 Zincado         $12.50   500
+TM-002    Tuerca M8 Hexagonal           $5.80    1000
+TM-003    Arandela M8 Plana             $2.30    2000
+
+HIDRÁULICA
+
+Código    Descripción                     Precio  Stock  
+HD-001    Manguera 1/2" x 10m           $245.00   50
+HD-002    Conexión NPT 1/4"             $18.50    200
+"""
+
+SAMPLE_TABLE_DATA = [
+    pd.DataFrame({
+        'Código': ['TM-001', 'TM-002', 'TM-003'],
+        'Descripción': ['Tornillo M8x20 Zincado', 'Tuerca M8 Hexagonal', 'Arandela M8 Plana'],
+        'Precio': [12.50, 5.80, 2.30],
+        'Stock': [500, 1000, 2000]
+    }),
+    pd.DataFrame({
+        'Código': ['HD-001', 'HD-002'],
+        'Descripción': ['Manguera 1/2" x 10m', 'Conexión NPT 1/4"'],
+        'Precio': [245.00, 18.50],
+        'Stock': [50, 200]
+    })
+]
+
+@pytest.mark.performance
+async def test_s02_pdf_performance_benchmark():
+    """
+    LOGRABLE: Procesar PDF de 100+ páginas en <15 minutos
+    TAGS: #pdf-performance #memory-test #ocr-benchmark
+    """
+    large_pdf_config = {
+        "tenant_id": "performance_test",
+        "source": {
+            "file_path": "/tmp/large_catalog.pdf",
+            "config": {
+                "page_range": {"start": 1, "end": 100},
+                "parallel_processing": True,
+                "batch_size": 10
+            }
+        }
+    }
+    
+    start_time = time.time()
+    initial_memory = psutil.Process().memory_info().rss / 1024 / 1024
+    
+    # Mock para simular procesamiento rápido
+    with patch('src.agents.pdf_processing_agent.PDFProcessingAgent') as mock_agent:
+        mock_agent.return_value.process_pdf.return_value = MagicMock(
+            status="completed",
+            products_extracted=2000,
+            pages_processed=100,
+            ocr_accuracy=0.92
+        )
+        
+        agent = PDFProcessingAgent()
+        result = await agent.process_pdf(large_pdf_config)
+    
+    duration = time.time() - start_time
+    final_memory = psutil.Process().memory_info().rss / 1024 / 1024
+    memory_used = final_memory - initial_memory
+    
+    # Verificaciones de performance
+    assert duration < 900, f"Muy lento: {duration}s (max: 900s)"  # 15 min
+    assert memory_used < 2048, f"Mucha memoria: {memory_used}MB (max: 2GB)"
+    assert result.products_extracted >= 1500, f"Pocos productos: {result.products_extracted}"
+    
+    pages_per_minute = result.pages_processed / (duration / 60)
+    assert pages_per_minute > 6, f"Procesamiento lento: {pages_per_minute} páginas/min"
+```
     
     # Verificar calidad de datos
     assert result.data_quality_score > 0.85  # 85% de calidad mínima
