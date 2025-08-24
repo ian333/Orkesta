@@ -1,0 +1,107 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Virtual Environment
+bin/
+lib/
+lib64/
+include/
+pyvenv.cfg
+pip-selfcheck.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific
+*.db
+*.sqlite
+*.sqlite3
+.env
+!.env.example
+
+# Logs
+*.log
+logs/
+*.pid
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Build
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Temporary files
+*.tmp
+*.bak
+.cache/
+tmp/
+
+# Data files (keep structure, ignore content)
+*.json
+!package.json
+!tsconfig.json
+!app.json
+*.csv
+*.xlsx
+
+# Generated files
+*.html
+!templates/*.html
+
+# OS files
+Thumbs.db
+.directory
+
+# Documentation build
+docs/_build/
+docs/.build/
+
+# Node (for frontend)
+node_modules/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Media files
+*.mp3
+*.mp4
+*.wav
+*.png
+*.jpg
+*.jpeg
+*.gif
+!assets/*.png
+!assets/*.jpg
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Secrets
+*.pem
+*.key
+*.cert
+*.crt
