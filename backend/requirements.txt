@@ -3,14 +3,60 @@ fastapi
 uvicorn[standard]
 pydantic
 
-# Database
+# Database & Vector Search
 sqlalchemy
+psycopg2-binary
+pgvector
+asyncpg
+
+# LangGraph & LangChain
+langgraph
+langchain
+langchain-groq
+langchain-openai
+langchain-community
+langchain-core
 
 # AI/LLM
 openai>=1.6.1
 groq
-langchain
-langchain-openai
+tiktoken
+
+# Web Scraping & Automation
+selenium
+beautifulsoup4
+requests-html
+scrapy
+playwright
+undetected-chromedriver
+
+# PDF Processing & OCR
+pdfplumber
+PyPDF2
+camelot-py[cv]
+tabula-py
+pytesseract
+paddleocr
+easyocr
+pdf2image
+Pillow
+
+# Document Processing
+python-docx
+openpyxl
+xlrd
+
+# Data Processing & ML
+pandas
+numpy
+scikit-learn
+spacy
+nltk
+fuzzywuzzy[speedup]
+
+# Image Processing
+opencv-python
+matplotlib
 
 # Payment Processing
 stripe
@@ -25,17 +71,35 @@ httpx
 aiohttp
 requests
 
-# Data Processing
-pandas
-python-dateutil
+# Task Queue & Background Jobs
+celery
+redis
+
+# Monitoring & Logging
+prometheus-client
+structlog
+python-json-logger
+rich
 
 # Environment & Config
 python-dotenv
+pydantic-settings
 
 # Testing
 pytest
 pytest-asyncio
+pytest-mock
+pytest-cov
+pytest-html
+
+# Development Tools
+black
+flake8
+mypy
+pre-commit
 
 # Utils
-python-json-logger
-rich
+click
+python-dateutil
+python-slugify
+fake-useragent

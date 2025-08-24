@@ -5,546 +5,785 @@
 ## 🎯 FILOSOFÍA DE TESTING
 
 **Test-First Development**: Definimos el comportamiento esperado antes de implementar.
-Cada escenario representa un caso de uso REAL de un cliente.
+Cada escenario representa un caso de uso REAL de extracción y procesamiento de catálogos.
 
 ## 📊 MATRIZ DE ESCENARIOS
 
 | ID | Escenario | Prioridad | Sprint | Complejidad | Estado |
 |----|-----------|-----------|--------|-------------|--------|
-| S01 | Pedido simple por WhatsApp | 🔴 Alta | 1 | Baja | 🔄 |
-| S02 | Pedido ambiguo requiere clarificación | 🔴 Alta | 1 | Media | 🔄 |
-| S03 | Cliente sin crédito intenta comprar | 🔴 Alta | 2 | Media | ⏳ |
-| S04 | Pago en efectivo con reconciliación | 🔴 Alta | 2 | Alta | ⏳ |
-| S05 | Múltiples agentes colaboran en cotización | 🟡 Media | 2 | Alta | ⏳ |
-| S06 | Cobranza escalada automática | 🟡 Media | 3 | Media | ⏳ |
-| S07 | Inventario bajo trigger reorden | 🟡 Media | 3 | Media | ⏳ |
-| S08 | Cliente abandona conversación | 🟢 Baja | 3 | Baja | ⏳ |
-| S09 | Multi-tenant isolation | 🔴 Alta | 1 | Alta | 🔄 |
-| S10 | Sistema bajo carga (1000 msg/seg) | 🟡 Media | 4 | Alta | ⏳ |
+| S01 | Extracción de catálogo desde MercadoLibre | 🔴 Alta | 1 | Alta | 🔄 |
+| S02 | Procesamiento de PDF con tablas y OCR | 🔴 Alta | 1 | Alta | 🔄 |
+| S03 | Web scraping con paginación y JS rendering | 🔴 Alta | 1 | Alta | 🔄 |
+| S04 | Normalización multi-fuente (ML + PDF + Web) | 🔴 Alta | 1 | Muy Alta | 🔄 |
+| S05 | Detección y aprendizaje de patterns | 🔴 Alta | 2 | Alta | ⏳ |
+| S06 | Enriquecimiento con búsqueda de imágenes | 🟡 Media | 2 | Media | ⏳ |
+| S07 | Multi-tenant catalog isolation | 🔴 Alta | 1 | Alta | 🔄 |
+| S08 | Human-in-the-loop para validación | 🟡 Media | 2 | Media | ⏳ |
+| S09 | Procesamiento de catálogo Excel complejo | 🟡 Media | 2 | Media | ⏳ |
+| S10 | Carga masiva (10,000+ productos) | 🔴 Alta | 3 | Muy Alta | ⏳ |
 
 ## 🔄 ESCENARIOS DETALLADOS
 
-### 🎬 ESCENARIO S01: Pedido Simple por WhatsApp
+### 🎬 ESCENARIO S01: Extracción de Catálogo desde MercadoLibre
 
-**Actor**: Juan (Dueño de ferretería)
-**Canal**: WhatsApp
-**Contexto**: Cliente frecuente, buen historial de pago
+**Tenant**: AVAZ Automotive
+**Fuente**: https://listado.mercadolibre.com.mx/_CustId_AVAZ
+**Contexto**: 500+ productos con variaciones, múltiples páginas
 
-#### Conversación:
-```
-Juan: "Hola, necesito 20 tubos PVC de 1/2 pulgada"
-Bot: "Hola Juan! 👋 Encontré Tubo PVC 1/2" a $45.50 c/u. 
-      Para 20 piezas serían $910.00. ¿Confirmo tu pedido?"
-Juan: "Sí"
-Bot: "✅ Pedido #ORD-2024-001 confirmado.
-      Total: $910.00
-      📍 Envío a tu dirección registrada
-      💳 Link de pago: [link]
-      ¿Necesitas factura?"
-Juan: "No por ahora"
-Bot: "Perfecto! Tu pedido está en proceso. Te avisaré cuando salga a reparto."
-```
-
-#### Verificaciones:
+#### Flujo de Extracción:
 ```python
-def test_s01_pedido_simple():
+async def test_s01_mercadolibre_extraction():
+    """
+    Extraer catálogo completo de AVAZ desde MercadoLibre
+    """
     # Arrange
-    customer = Customer(
-        id="c_juan_001",
-        name="Juan Pérez",
-        credit_limit=50000,
-        balance=0,
-        history="excellent"
-    )
+    config = {
+        "tenant_id": "avaz_automotive",
+        "source": {
+            "type": "mercadolibre",
+            "url": "https://listado.mercadolibre.com.mx/_CustId_123456",
+            "config": {
+                "follow_pagination": True,
+                "max_pages": 50,
+                "extract_variations": True,
+                "extract_images": True,
+                "extract_questions": True,
+                "monitor_price_changes": True
+            }
+        }
+    }
     
-    # Act
-    conversation = ConversationEngine()
-    responses = conversation.process_flow([
-        "Hola, necesito 20 tubos PVC de 1/2 pulgada",
-        "Sí",
-        "No por ahora"
+    # Act - Iniciar extracción con LangGraph
+    graph = CatalogExtractionGraph()
+    extraction_job = await graph.start_extraction(config)
+    
+    # Stream de eventos para monitorear progreso
+    events = []
+    async for event in extraction_job.stream():
+        events.append(event)
+        
+        if event.type == "page_processed":
+            print(f"📄 Página {event.page_num}: {event.products_found} productos")
+        elif event.type == "pattern_learned":
+            print(f"🧠 Pattern aprendido: {event.pattern_name}")
+    
+    # Esperar resultado final
+    result = await extraction_job.result()
+    
+    # Assert - Verificaciones detalladas
+    assert result.status == "completed"
+    assert result.products_extracted >= 500
+    assert result.pages_processed >= 10
+    
+    # Verificar estructura de productos
+    sample_product = result.products[0]
+    assert all([
+        sample_product.get("sku"),
+        sample_product.get("title"),
+        sample_product.get("price"),
+        sample_product.get("images"),
+        sample_product.get("description"),
+        sample_product.get("stock_status"),
+        sample_product.get("seller_reputation"),
+        sample_product.get("shipping_info")
     ])
     
-    # Assert
-    assert len(responses) == 3
-    assert "Tubo PVC 1/2" in responses[0]
-    assert "$910.00" in responses[0]
-    assert "ORD-2024" in responses[1]
-    assert "link de pago" in responses[1].lower()
+    # Verificar variaciones extraídas
+    products_with_variations = [p for p in result.products if p.get("variations")]
+    assert len(products_with_variations) > 50  # Al menos 50 productos con variaciones
     
-    # Verificar que se creó la orden
-    order = Order.get_latest_for_customer(customer.id)
-    assert order.status == "confirmed"
-    assert order.total == 910.00
-    assert len(order.items) == 1
-    assert order.items[0].quantity == 20
+    # Verificar patterns aprendidos para futuras extracciones
+    learned_patterns = result.learned_patterns
+    assert "product_listing_selector" in learned_patterns
+    assert "price_selector" in learned_patterns
+    assert "pagination_pattern" in learned_patterns
+    
+    # Verificar calidad de datos
+    assert result.data_quality_score > 0.85  # 85% de calidad mínima
+    
+    # Guardar en base de datos con pgvector
+    saved_count = await save_to_database(result.products, config["tenant_id"])
+    assert saved_count == len(result.products)
 ```
 
-### 🎬 ESCENARIO S02: Pedido Ambiguo Requiere Clarificación
+### 🎬 ESCENARIO S02: Procesamiento de PDF con Tablas y OCR
 
-**Actor**: María (Plomera independiente)
-**Canal**: WhatsApp
-**Contexto**: Cliente nueva, primer pedido
+**Tenant**: AVAZ Automotive
+**Fuente**: catalogo_avaz_2024.pdf (200 páginas, tablas, imágenes)
+**Contexto**: PDF escaneado con tablas de productos y especificaciones
 
-#### Conversación:
-```
-María: "Buenas, tienen tubos?"
-Bot: "Hola! 👋 Sí, tenemos varios tipos de tubos. 
-      ¿Qué tipo buscas?
-      • PVC (1/2", 3/4", 1")
-      • CPVC
-      • Galvanizado
-      • Cobre"
-María: "pvc, el chico"
-Bot: "Tenemos Tubo PVC 1/2" (el más pequeño) a $45.50.
-      ¿Cuántas piezas necesitas?"
-María: "mmm como 5"
-Bot: "Perfecto! 5 piezas de Tubo PVC 1/2":
-      • Precio unitario: $45.50
-      • Total: $227.50
-      ¿Confirmo tu pedido?"
-María: "Está bien pero les pago cuando me los lleven"
-Bot: "Entendido! Como es tu primera compra, necesito algunos datos:
-      • Nombre completo
-      • Dirección de entrega
-      • Teléfono de contacto
-      
-      Manejamos pago contra entrega 💵
-      ¿Me compartes tus datos?"
-```
-
-#### Verificaciones:
+#### Flujo de Procesamiento:
 ```python
-def test_s02_pedido_ambiguo():
+async def test_s02_pdf_processing_with_ocr():
+    """
+    Procesar PDF complejo con OCR multi-pass
+    """
     # Arrange
-    maría = Customer(type="new")
+    pdf_config = {
+        "tenant_id": "avaz_automotive",
+        "source": {
+            "type": "pdf",
+            "path": "/catalogs/avaz/catalogo_2024.pdf",
+            "config": {
+                "ocr_enabled": True,
+                "ocr_languages": ["spa", "eng"],
+                "extract_tables": True,
+                "extract_images": True,
+                "multi_column_layout": True,
+                "confidence_threshold": 0.8
+            }
+        }
+    }
     
-    # Act
-    conversation = ConversationEngine()
-    responses = conversation.process_flow([
-        "Buenas, tienen tubos?",
-        "pvc, el chico",
-        "mmm como 5",
-        "Está bien pero les pago cuando me los lleven"
-    ])
+    # Act - Procesamiento multi-pass
+    pdf_processor = PDFProcessingAgent()
     
-    # Assert - Clarificación requerida
-    assert "qué tipo" in responses[0].lower()
-    assert "PVC" in responses[0]
-    assert "CPVC" in responses[0]
+    # Pass 1: Análisis de layout
+    layout = await pdf_processor.analyze_layout(pdf_config["source"]["path"])
+    assert layout.total_pages == 200
+    assert layout.has_tables == True
+    assert layout.has_images == True
+    assert layout.is_scanned == True  # Requiere OCR
     
-    # Assert - Mapeo correcto
-    assert "1/2" in responses[1]
-    assert "más pequeño" in responses[1]
+    # Pass 2: Extracción por tipo de contenido
+    extraction_result = await pdf_processor.extract_content(pdf_config)
     
-    # Assert - Cantidad interpretada
-    assert responses[2].count("5") >= 1
-    assert "227.50" in responses[2]
+    # Monitorear progreso página por página
+    for page_num in range(1, layout.total_pages + 1):
+        page_result = await pdf_processor.process_page(page_num)
+        
+        if page_result.has_table:
+            # Extraer tabla con Camelot/Tabula
+            table_data = await pdf_processor.extract_table(page_result)
+            assert len(table_data.rows) > 0
+            
+            # Convertir tabla a productos
+            products = await pdf_processor.table_to_products(table_data)
+            
+        if page_result.has_images:
+            # OCR en imágenes de productos
+            for image in page_result.images:
+                ocr_result = await pdf_processor.ocr_image(image)
+                
+                if ocr_result.confidence > 0.8:
+                    # Extraer información del producto
+                    product_info = await pdf_processor.extract_product_from_ocr(ocr_result)
+                    assert product_info.get("name")
+                    assert product_info.get("code") or product_info.get("sku")
     
-    # Assert - Manejo de pago contra entrega
-    assert "primera compra" in responses[3]
-    assert "datos" in responses[3].lower()
-    assert "contra entrega" in responses[3]
+    # Pass 3: Consolidación y normalización
+    all_products = extraction_result.products
+    
+    # Assert - Verificaciones
+    assert len(all_products) >= 1000  # Mínimo 1000 productos del catálogo
+    
+    # Verificar calidad de OCR
+    ocr_quality_metrics = extraction_result.ocr_metrics
+    assert ocr_quality_metrics.average_confidence > 0.85
+    assert ocr_quality_metrics.failed_pages < 5  # Menos de 5 páginas fallidas
+    
+    # Verificar extracción de tablas
+    assert extraction_result.tables_extracted >= 50  # Al menos 50 tablas
+    
+    # Verificar estructura de productos extraídos
+    sample_product = all_products[0]
+    assert sample_product.get("name") or sample_product.get("description")
+    assert sample_product.get("sku") or sample_product.get("code")
+    assert sample_product.get("price") or sample_product.get("price_text")
+    
+    # Validación con LLM
+    validation_result = await pdf_processor.validate_with_llm(all_products[:10])
+    assert validation_result.valid_products >= 8  # 80% válidos
 ```
 
-### 🎬 ESCENARIO S03: Cliente Sin Crédito Intenta Comprar
+### 🎬 ESCENARIO S03: Web Scraping con Paginación y JS Rendering
 
-**Actor**: Carlos (Constructor moroso)
-**Canal**: WhatsApp  
-**Contexto**: Debe $15,000, límite excedido hace 30 días
+**Tenant**: Industrial Tools MX
+**Fuente**: https://industrialtools.mx/catalogo
+**Contexto**: SPA con React, carga dinámica, infinite scroll
 
-#### Conversación:
-```
-Carlos: "Necesito 100 blocks"
-Bot: "Hola Carlos. Veo que tienes un saldo pendiente de $15,000 
-      vencido hace 30 días. 
-      
-      Para procesar nuevos pedidos, necesitamos regularizar tu cuenta.
-      
-      Opciones:
-      1️⃣ Pagar total ($15,000) - 5% descuento = $14,250
-      2️⃣ Abono del 50% ($7,500) para reactivar crédito
-      3️⃣ Plan de pagos: 3 mensualidades de $5,300
-      
-      ¿Cuál prefieres?"
-Carlos: "No tengo ahora"
-Bot: "Entiendo Carlos. Te puedo ofrecer:
-      
-      💵 Pago de contado con 10% descuento
-      📱 Transferencia inmediata
-      
-      Para 100 blocks serían $1,250 - 10% = $1,125
-      
-      ¿Te interesa?"
-Carlos: "Déjame ver y te aviso"
-Bot: "Claro Carlos. Recuerda que:
-      • Tu crédito se reactiva con un abono de $7,500
-      • Con pago de contado tienes 10% descuento
-      
-      Estoy aquí cuando decidas. 
-      
-      💡 Tip: Otros clientes usan Kueski Pay para financiar."
-```
-
-#### Verificaciones:
+#### Flujo de Scraping:
 ```python
-def test_s03_cliente_sin_credito():
+async def test_s03_dynamic_web_scraping():
+    """
+    Scraping de sitio con JavaScript y carga dinámica
+    """
     # Arrange
-    carlos = Customer(
-        id="c_carlos_001",
-        balance=-15000,
-        credit_limit=10000,
-        days_overdue=30,
-        status="blocked"
+    scraping_config = {
+        "tenant_id": "industrial_tools",
+        "source": {
+            "type": "website",
+            "url": "https://industrialtools.mx/catalogo",
+            "config": {
+                "javascript_enabled": True,
+                "wait_for_ajax": True,
+                "infinite_scroll": True,
+                "max_scroll_attempts": 50,
+                "wait_between_scrolls": 2000,  # ms
+                "detect_lazy_loading": True,
+                "extract_ajax_requests": True
+            }
+        }
+    }
+    
+    # Act - Scraping inteligente
+    scraper = IntelligentWebScrapingAgent()
+    
+    # Detectar tipo de sitio y tecnología
+    site_analysis = await scraper.analyze_site(scraping_config["source"]["url"])
+    assert site_analysis.framework == "React"
+    assert site_analysis.has_infinite_scroll == True
+    assert site_analysis.api_endpoints_found > 0
+    
+    # Estrategia 1: Interceptar llamadas API
+    if site_analysis.api_endpoints_found:
+        api_products = await scraper.intercept_api_calls(
+            scraping_config["source"]["url"]
+        )
+        assert len(api_products) > 0
+    
+    # Estrategia 2: Selenium con scroll dinámico
+    selenium_scraper = await scraper.create_selenium_session()
+    
+    products_found = []
+    last_height = 0
+    scroll_attempts = 0
+    
+    while scroll_attempts < 50:
+        # Scroll hasta el bottom
+        await selenium_scraper.scroll_to_bottom()
+        await asyncio.sleep(2)  # Esperar carga
+        
+        # Extraer productos visibles
+        new_products = await selenium_scraper.extract_visible_products()
+        products_found.extend(new_products)
+        
+        # Verificar si hay más contenido
+        current_height = await selenium_scraper.get_page_height()
+        if current_height == last_height:
+            break  # No hay más contenido
+        
+        last_height = current_height
+        scroll_attempts += 1
+    
+    # Estrategia 3: Buscar patterns en el DOM
+    dom_patterns = await scraper.detect_dom_patterns(
+        await selenium_scraper.get_page_source()
     )
     
-    # Act
-    responses = conversation.process_flow(
-        customer=carlos,
-        messages=["Necesito 100 blocks", "No tengo ahora", "Déjame ver y te aviso"]
+    # Aplicar patterns para extracción más eficiente
+    pattern_extracted = await scraper.apply_patterns(dom_patterns)
+    
+    # Consolidar productos de todas las estrategias
+    all_products = scraper.deduplicate_products(
+        api_products + products_found + pattern_extracted
     )
     
-    # Assert - Bloqueo por crédito
-    assert "saldo pendiente" in responses[0]
-    assert "15,000" in responses[0]
-    assert "30 días" in responses[0]
+    # Assert - Verificaciones
+    assert len(all_products) >= 500
     
-    # Assert - Opciones de pago
-    assert "descuento" in responses[0]
-    assert "plan de pagos" in responses[0].lower()
+    # Verificar que se extrajeron imágenes lazy-loaded
+    products_with_images = [p for p in all_products if p.get("image_url")]
+    assert len(products_with_images) / len(all_products) > 0.9  # 90% con imágenes
     
-    # Assert - Alternativa de contado
-    assert "contado" in responses[1]
-    assert "10%" in responses[1]
+    # Verificar extracción de precios dinámicos
+    products_with_prices = [p for p in all_products if p.get("price")]
+    assert len(products_with_prices) / len(all_products) > 0.95
     
-    # Assert - No se creó orden
-    orders = Order.get_for_customer(carlos.id, since="today")
-    assert len(orders) == 0
+    # Guardar patterns aprendidos para futuras extracciones
+    await scraper.save_learned_patterns(
+        scraping_config["source"]["url"],
+        dom_patterns
+    )
 ```
 
-### 🎬 ESCENARIO S04: Pago en Efectivo con Reconciliación
+### 🎬 ESCENARIO S04: Normalización Multi-Fuente (ML + PDF + Web)
 
-**Actor**: Ana (Tienda de barrio)
-**Canal**: WhatsApp
-**Contexto**: Prefiere pagar en OXXO
+**Tenant**: AVAZ Automotive
+**Fuentes**: MercadoLibre + PDF + Sitio Web
+**Contexto**: Mismo catálogo en 3 fuentes diferentes, consolidar sin duplicados
 
-#### Conversación:
-```
-Ana: "Quiero pagar mi pedido de ayer"
-Bot: "Hola Ana! Tu pedido #ORD-2024-002 por $3,450.00
-      
-      Opciones de pago:
-      💳 Tarjeta (link): [url]
-      🏪 OXXO: Referencia 2345-6789-0123
-      📱 Transferencia:
-         CLABE: 1234567890123456
-         Ref: ORD2024002
-      
-      ¿Cómo prefieres pagar?"
-Ana: "En oxxo"
-Bot: "Perfecto! Para pagar en OXXO:
-      
-      📝 Referencia: 2345-6789-0123
-      💰 Monto: $3,450.00
-      ⏰ Vigencia: 48 horas
-      
-      📱 También te envié el código de barras por WhatsApp
-      
-      En cuanto OXXO confirme (5-10 min), te aviso."
-
-[30 minutos después...]
-
-Bot: "✅ Ana, recibimos tu pago!
-      
-      Pedido #ORD-2024-002
-      Pagado: $3,450.00
-      
-      🚚 Tu pedido sale mañana a primera hora
-      📄 Factura disponible en: [link]
-      
-      ¡Gracias por tu pago puntual! 🌟"
-```
-
-#### Verificaciones:
+#### Flujo de Normalización:
 ```python
-def test_s04_pago_efectivo_oxxo():
-    # Arrange
-    ana = Customer(id="c_ana_001")
-    order = Order(
-        id="ORD-2024-002",
-        customer_id=ana.id,
-        total=3450.00,
-        status="pending_payment"
-    )
+async def test_s04_multi_source_normalization():
+    """
+    Consolidar catálogo desde múltiples fuentes
+    """
+    # Arrange - 3 fuentes diferentes
+    sources = [
+        {
+            "type": "mercadolibre",
+            "url": "https://listado.mercadolibre.com.mx/_CustId_AVAZ",
+            "products_expected": 500
+        },
+        {
+            "type": "pdf",
+            "path": "/catalogs/avaz/catalogo_2024.pdf",
+            "products_expected": 1000
+        },
+        {
+            "type": "website",
+            "url": "https://avaz.com.mx/productos",
+            "products_expected": 800
+        }
+    ]
     
-    # Act - Solicitud de pago
-    response1 = conversation.process("Quiero pagar mi pedido de ayer")
+    # Act - Extraer de cada fuente en paralelo
+    extraction_tasks = []
+    for source in sources:
+        if source["type"] == "mercadolibre":
+            task = extract_from_mercadolibre(source)
+        elif source["type"] == "pdf":
+            task = extract_from_pdf(source)
+        elif source["type"] == "website":
+            task = extract_from_website(source)
+        extraction_tasks.append(task)
     
-    # Assert - Opciones de pago
-    assert "OXXO" in response1
-    assert "Referencia" in response1
-    assert "CLABE" in response1
+    # Ejecutar extracciones en paralelo
+    extraction_results = await asyncio.gather(*extraction_tasks)
     
-    # Act - Selección OXXO
-    response2 = conversation.process("En oxxo")
+    # Verificar extracciones individuales
+    ml_products = extraction_results[0]
+    pdf_products = extraction_results[1]
+    web_products = extraction_results[2]
     
-    # Assert - Instrucciones OXXO
-    assert "2345-6789-0123" in response2
-    assert "48 horas" in response2
-    assert "código de barras" in response2
+    assert len(ml_products) >= 500
+    assert len(pdf_products) >= 1000
+    assert len(web_products) >= 800
     
-    # Simular webhook de OXXO
-    webhook = OXXOWebhook(
-        reference="2345-6789-0123",
-        amount=3450.00,
-        status="paid",
-        paid_at=datetime.now()
-    )
+    # Normalización inteligente
+    normalizer = NormalizationPipeline()
     
-    # Act - Procesar pago
-    payment_processor.process_webhook(webhook)
+    # Detectar schema de cada fuente
+    ml_schema = await normalizer.detect_schema(ml_products[:10])
+    pdf_schema = await normalizer.detect_schema(pdf_products[:10])
+    web_schema = await normalizer.detect_schema(web_products[:10])
     
-    # Assert - Confirmación automática
-    notifications = NotificationQueue.get_for_customer(ana.id)
-    assert len(notifications) == 1
-    assert "recibimos tu pago" in notifications[0]
-    assert order.reload().status == "paid"
+    # Crear mapping rules con LLM
+    target_schema = ProductSchema()  # Schema objetivo unificado
+    
+    ml_mapping = await normalizer.create_mapping(ml_schema, target_schema)
+    pdf_mapping = await normalizer.create_mapping(pdf_schema, target_schema)
+    web_mapping = await normalizer.create_mapping(web_schema, target_schema)
+    
+    # Aplicar normalizaciones
+    ml_normalized = await normalizer.normalize_batch(ml_products, ml_mapping)
+    pdf_normalized = await normalizer.normalize_batch(pdf_products, pdf_mapping)
+    web_normalized = await normalizer.normalize_batch(web_products, web_mapping)
+    
+    # Consolidación y deduplicación
+    consolidator = ProductConsolidator()
+    
+    # Configurar estrategia de deduplicación
+    dedup_config = {
+        "match_fields": ["sku", "name", "barcode"],
+        "fuzzy_match_threshold": 0.85,
+        "prefer_source_priority": ["pdf", "website", "mercadolibre"],
+        "merge_strategy": "combine_best_fields"
+    }
+    
+    # Consolidar productos
+    all_products = ml_normalized + pdf_normalized + web_normalized
+    consolidated = await consolidator.consolidate(all_products, dedup_config)
+    
+    # Assert - Verificaciones de consolidación
+    
+    # No debe haber más productos que el máximo esperado (con margen)
+    assert len(consolidated) <= 1200  # ~1000 únicos esperados
+    assert len(consolidated) >= 900   # Al menos 900 únicos
+    
+    # Verificar que se detectaron duplicados
+    assert consolidator.duplicates_found >= 300  # Overlap esperado
+    
+    # Verificar enriquecimiento (campos combinados)
+    enriched_products = [
+        p for p in consolidated 
+        if len(p.get("merged_from", [])) > 1
+    ]
+    assert len(enriched_products) >= 200  # Al menos 200 productos enriquecidos
+    
+    # Verificar calidad de normalización
+    quality_check = await normalizer.validate_quality(consolidated)
+    assert quality_check.completeness_score > 0.9  # 90% campos completos
+    assert quality_check.consistency_score > 0.95  # 95% formato consistente
+    
+    # Verificar que cada producto tiene los campos requeridos
+    for product in consolidated[:100]:  # Muestra de 100
+        assert product.get("sku") or product.get("internal_code")
+        assert product.get("name")
+        assert product.get("normalized_name")  # Nombre normalizado
+        assert product.get("category")  # Categorizado
+        assert product.get("price") or product.get("price_range")
+        assert product.get("source_references")  # De dónde viene
+        
+    # Guardar en base de datos con embeddings
+    embedder = ProductEmbedder()
+    for product in consolidated:
+        # Generar embedding para búsqueda semántica
+        product["embedding"] = await embedder.generate_embedding(product)
+    
+    saved = await save_to_postgres_with_vector(consolidated, "avaz_automotive")
+    assert saved == len(consolidated)
 ```
 
-### 🎬 ESCENARIO S05: Múltiples Agentes Colaboran
+### 🎬 ESCENARIO S05: Detección y Aprendizaje de Patterns
 
-**Actor**: Roberto (Empresa constructora)
-**Canal**: WhatsApp
-**Contexto**: Cliente premium, pedido grande
+**Contexto**: Sistema aprende patterns de extracción automáticamente
 
-#### Flujo Interno de Agentes:
-```
-Roberto: "Necesito cotización para 500 m2 de piso cerámico"
-
-[WhatsApp Agent → Orchestrator]
-  Intent: "quote_request"
-  Confidence: 0.95
-
-[Orchestrator → Catalog Agent]
-  Action: "search_products"
-  Query: "piso cerámico"
-
-[Catalog Agent → Orchestrator]
-  Found: 5 products
-  Best match: "Cerámico Portobello 60x60"
-
-[Orchestrator → Inventory Agent]
-  Check stock for 500m2 (≈140 cajas)
-
-[Inventory Agent → Orchestrator]
-  Stock: 89 cajas (warehouse A)
-         63 cajas (warehouse B)
-  Total: 152 cajas ✓
-
-[Orchestrator → Pricing Agent]
-  Calculate price for:
-  - Customer: premium_segment
-  - Quantity: 140 cajas
-  - Product: ceramic_portobello
-
-[Pricing Agent → Orchestrator]
-  Base: $450/caja
-  Volume discount: -15%
-  Premium customer: -5%
-  Final: $360/caja
-  Total: $50,400
-
-[Orchestrator → Quote Agent]
-  Generate formal quote
-
-[Quote Agent → WhatsApp Agent]
-  PDF generated: quote_2024_003.pdf
-  Valid for: 7 days
-
-[WhatsApp Agent → Roberto]
-Bot: "Roberto, preparé tu cotización:
-      
-      📋 Cotización #Q-2024-003
-      • Cerámico Portobello 60x60
-      • 140 cajas (504 m2)
-      • Precio especial: $360/caja
-      • Total: $50,400
-      
-      ✅ Incluye:
-      - Descuento volumen 15%
-      - Descuento cliente premium 5%
-      - Entrega sin costo
-      - Garantía extendida
-      
-      📄 PDF detallado: [link]
-      ⏰ Vigencia: 7 días
-      
-      ¿Procedemos con el pedido?"
-```
-
-#### Verificaciones:
+#### Flujo de Pattern Learning:
 ```python
-def test_s05_colaboracion_agentes():
-    # Arrange
-    roberto = Customer(
-        id="c_roberto_001",
-        segment="premium",
-        credit_limit=500000
-    )
+async def test_s05_pattern_learning():
+    """
+    El sistema aprende patterns de sitios nuevos
+    """
+    # Arrange - Sitio nunca antes visto
+    new_site = {
+        "url": "https://nuevo-proveedor.mx/productos",
+        "tenant_id": "test_tenant"
+    }
     
-    # Act
-    message = "Necesito cotización para 500 m2 de piso cerámico"
+    # Act - Primera extracción (sin patterns)
+    scraper = IntelligentWebScrapingAgent()
     
-    # Verificar que cada agente fue llamado
-    with patch.object(CatalogAgent, 'search') as mock_catalog:
-        with patch.object(InventoryAgent, 'check') as mock_inventory:
-            with patch.object(PricingAgent, 'calculate') as mock_pricing:
-                with patch.object(QuoteAgent, 'generate') as mock_quote:
-                    
-                    response = orchestrator.process(message, roberto)
-                    
-                    # Assert - Todos los agentes participaron
-                    mock_catalog.assert_called_once()
-                    mock_inventory.assert_called_once()
-                    mock_pricing.assert_called_once()
-                    mock_quote.assert_called_once()
+    # El agente debe detectar patterns automáticamente
+    first_extraction = await scraper.extract_with_learning(new_site["url"])
     
-    # Assert - Respuesta correcta
-    assert "Cerámico Portobello" in response
-    assert "504 m2" in response  # Área real
-    assert "$50,400" in response
-    assert "15%" in response  # Descuento volumen
-    assert "5%" in response   # Descuento premium
+    # Verificar que detectó patterns
+    detected_patterns = first_extraction.patterns_detected
+    assert "product_container" in detected_patterns
+    assert "price_selector" in detected_patterns
+    assert "name_selector" in detected_patterns
+    assert "image_selector" in detected_patterns
     
-    # Assert - Quote generada
-    quote = Quote.get_latest_for_customer(roberto.id)
-    assert quote.total == 50400
-    assert quote.valid_until > datetime.now()
+    # Guardar patterns
+    await scraper.save_patterns(new_site["url"], detected_patterns)
+    
+    # Segunda extracción (con patterns aprendidos)
+    second_extraction = await scraper.extract_with_learning(new_site["url"])
+    
+    # Assert - Segunda extracción debe ser más rápida y precisa
+    assert second_extraction.extraction_time < first_extraction.extraction_time * 0.5
+    assert second_extraction.confidence_score > first_extraction.confidence_score
+    assert second_extraction.used_learned_patterns == True
+    
+    # Verificar que los patterns mejoran con el tiempo
+    pattern_performance = await scraper.get_pattern_metrics(new_site["url"])
+    assert pattern_performance.success_rate > 0.95
+    assert pattern_performance.times_used >= 2
 ```
 
-### 🎬 ESCENARIO S09: Multi-Tenant Isolation
+### 🎬 ESCENARIO S07: Multi-Tenant Catalog Isolation
 
-**Actor**: Sistema
-**Contexto**: Verificar que los datos NUNCA se cruzan entre tenants
+**Contexto**: Verificar aislamiento completo entre tenants
 
-#### Test:
+#### Test de Aislamiento:
 ```python
-def test_s09_multi_tenant_isolation():
-    # Arrange - Crear 2 tenants
-    tenant_a = Tenant(id="company-a")
-    tenant_b = Tenant(id="company-b")
+async def test_s07_multi_tenant_isolation():
+    """
+    Datos de catálogos NUNCA se cruzan entre tenants
+    """
+    # Arrange - 2 empresas competidoras
+    tenant_a = {
+        "id": "company_a",
+        "name": "Ferretería A"
+    }
     
-    # Crear productos con mismo SKU en ambos tenants
-    product_a = Product(
-        tenant_id="company-a",
-        sku="TUBE-001",
-        name="Tubo Marca A",
-        price=100
-    )
+    tenant_b = {
+        "id": "company_b", 
+        "name": "Ferretería B"
+    }
     
-    product_b = Product(
-        tenant_id="company-b",
-        sku="TUBE-001",  # Mismo SKU!
-        name="Tubo Marca B",
-        price=200
-    )
+    # Ambos tienen productos con mismo SKU pero diferentes precios
+    product_a = {
+        "tenant_id": "company_a",
+        "sku": "TUBE-001",
+        "name": "Tubo PVC Premium A",
+        "price": 100,
+        "cost": 50,  # Información sensible
+        "supplier": "Proveedor Secreto A"
+    }
     
-    # Act - Buscar desde cada contexto
-    context_a = get_context("company-a")
-    context_b = get_context("company-b")
+    product_b = {
+        "tenant_id": "company_b",
+        "sku": "TUBE-001",  # Mismo SKU!
+        "name": "Tubo PVC Básico B",
+        "price": 80,
+        "cost": 40,  # Información sensible
+        "supplier": "Proveedor Secreto B"
+    }
     
-    result_a = context_a.search_product("TUBE-001")
-    result_b = context_b.search_product("TUBE-001")
+    # Act - Guardar productos
+    await save_product(product_a)
+    await save_product(product_b)
     
-    # Assert - Isolation completo
-    assert result_a.name == "Tubo Marca A"
+    # Crear contextos de ejecución
+    context_a = create_tenant_context("company_a")
+    context_b = create_tenant_context("company_b")
+    
+    # Búsquedas desde cada contexto
+    result_a = await context_a.search_product("TUBE-001")
+    result_b = await context_b.search_product("TUBE-001")
+    
+    # Assert - Aislamiento completo
+    assert result_a.name == "Tubo PVC Premium A"
     assert result_a.price == 100
-    assert result_b.name == "Tubo Marca B"
-    assert result_b.price == 200
+    assert result_a.supplier == "Proveedor Secreto A"
     
-    # Intentar acceso cruzado (debe fallar)
-    with pytest.raises(SecurityException):
-        context_a.get_product(product_b.id)
+    assert result_b.name == "Tubo PVC Básico B"
+    assert result_b.price == 80
+    assert result_b.supplier == "Proveedor Secreto B"
     
-    # Verificar que las conversaciones no se mezclan
-    conv_a = Conversation(tenant_id="company-a", text="Hola")
-    conv_b = Conversation(tenant_id="company-b", text="Hola")
+    # Intentar acceso cruzado (DEBE FALLAR)
+    with pytest.raises(SecurityException) as exc:
+        await context_a.get_product(product_b["id"])
+    assert "Access denied" in str(exc.value)
     
-    # Cada tenant solo ve sus conversaciones
-    assert len(context_a.get_conversations()) == 1
-    assert len(context_b.get_conversations()) == 1
-    assert context_a.get_conversations()[0].id == conv_a.id
-    assert context_b.get_conversations()[0].id == conv_b.id
+    # Verificar vector search con aislamiento
+    embedding_a = await generate_embedding("tubo pvc")
+    
+    # Búsqueda vectorial desde contexto A
+    vector_results_a = await context_a.vector_search(embedding_a)
+    for result in vector_results_a:
+        assert result.tenant_id == "company_a"  # Solo productos de A
+    
+    # Búsqueda vectorial desde contexto B
+    vector_results_b = await context_b.vector_search(embedding_a)
+    for result in vector_results_b:
+        assert result.tenant_id == "company_b"  # Solo productos de B
+    
+    # Verificar que los agentes respetan el aislamiento
+    agent = CatalogAgent()
+    
+    # Agente en contexto A
+    agent.set_context(context_a)
+    agent_response_a = await agent.search("TUBE-001")
+    assert "Premium A" in agent_response_a
+    assert "Secreto B" not in agent_response_a  # No debe ver datos de B
+    
+    # Verificar logs de auditoría
+    audit_logs = await get_audit_logs()
+    cross_tenant_attempts = [
+        log for log in audit_logs 
+        if log.type == "CROSS_TENANT_ACCESS_ATTEMPT"
+    ]
+    assert len(cross_tenant_attempts) == 1  # El intento fallido de arriba
+```
+
+### 🎬 ESCENARIO S08: Human-in-the-Loop para Validación
+
+**Contexto**: Validación humana cuando la confianza es baja
+
+#### Flujo con Intervención Humana:
+```python
+async def test_s08_human_in_the_loop():
+    """
+    Sistema pausa para revisión humana cuando es necesario
+    """
+    # Arrange - Extracción con baja confianza
+    ambiguous_source = {
+        "type": "pdf",
+        "path": "/catalogs/damaged_scan.pdf",  # PDF de mala calidad
+        "tenant_id": "test_tenant"
+    }
+    
+    # Act - Iniciar extracción
+    graph = CatalogExtractionGraph()
+    config = {"configurable": {"thread_id": "test_123"}}
+    
+    # Primera ejecución - debe detenerse para revisión
+    result = await graph.ainvoke(ambiguous_source, config)
+    
+    # Assert - Sistema solicitó revisión
+    assert result["requires_human_approval"] == True
+    assert result["confidence_score"] < 0.7
+    assert len(result["items_for_review"]) > 0
+    
+    # Simular revisión humana
+    human_feedback = {
+        "approved_items": [
+            {
+                "id": "item_1",
+                "corrections": {
+                    "name": "Tubo Corregido",
+                    "price": 45.50
+                }
+            }
+        ],
+        "rejected_items": ["item_2", "item_3"],
+        "additional_notes": "El OCR falló en páginas 3-5"
+    }
+    
+    # Continuar con feedback
+    final_result = await graph.ainvoke(
+        Command(resume=human_feedback),
+        config
+    )
+    
+    # Assert - Procesó feedback correctamente
+    assert final_result["status"] == "completed_with_review"
+    assert len(final_result["products"]) > 0
+    assert final_result["human_corrections_applied"] == True
+    
+    # Verificar que aprendió del feedback
+    learning_metrics = final_result["learning_metrics"]
+    assert learning_metrics["patterns_updated"] > 0
+    assert learning_metrics["confidence_threshold_adjusted"] == True
+```
+
+### 🎬 ESCENARIO S10: Carga Masiva (10,000+ productos)
+
+**Contexto**: Performance con catálogos enormes
+
+#### Test de Carga:
+```python
+async def test_s10_massive_catalog_load():
+    """
+    Procesar catálogo con 10,000+ productos eficientemente
+    """
+    # Arrange - Fuente masiva
+    massive_source = {
+        "type": "api",
+        "endpoint": "https://api.megasupplier.com/products",
+        "total_products": 15000,
+        "tenant_id": "mega_client"
+    }
+    
+    # Act - Procesamiento con streaming y batching
+    processor = MassiveCatalogProcessor()
+    
+    start_time = time.time()
+    
+    # Configurar procesamiento por batches
+    batch_config = {
+        "batch_size": 100,
+        "parallel_batches": 5,
+        "checkpoint_every": 500,
+        "memory_limit_mb": 512
+    }
+    
+    processed_count = 0
+    errors = []
+    
+    async for batch_result in processor.process_stream(massive_source, batch_config):
+        processed_count += batch_result.products_processed
+        errors.extend(batch_result.errors)
+        
+        # Verificar memory usage
+        memory_usage = get_memory_usage()
+        assert memory_usage < 512  # MB
+        
+        # Verificar checkpointing
+        if processed_count % 500 == 0:
+            checkpoint = await processor.get_checkpoint()
+            assert checkpoint.products_saved == processed_count
+    
+    end_time = time.time()
+    duration = end_time - start_time
+    
+    # Assert - Performance metrics
+    assert processed_count >= 14500  # 95%+ success rate
+    assert len(errors) < 500  # Menos de 500 errores
+    assert duration < 300  # Menos de 5 minutos
+    
+    # Verificar throughput
+    throughput = processed_count / duration
+    assert throughput > 50  # Más de 50 productos/segundo
+    
+    # Verificar que se guardaron en DB con índices
+    db_count = await count_products("mega_client")
+    assert db_count >= 14500
+    
+    # Verificar que la búsqueda sigue siendo rápida
+    search_time = await measure_search_time("mega_client", "random_query")
+    assert search_time < 100  # ms
 ```
 
 ## 🎭 ESCENARIOS DE ERROR
 
-### E01: Timeout en Agente
+### E01: Sitio Web Cambia Estructura
 ```python
-def test_e01_agent_timeout():
-    # Simular que catalog agent no responde
-    CatalogAgent.response_time = 10000  # 10 segundos
+async def test_e01_website_structure_change():
+    """
+    El scraper se adapta cuando un sitio cambia su estructura
+    """
+    # Simular que MercadoLibre cambió su HTML
+    old_pattern = {"product_selector": ".ui-search-result"}
+    new_pattern = {"product_selector": ".new-product-card"}
     
-    message = "Buscar tubos PVC"
+    scraper = AdaptiveWebScraper()
     
-    # Debe activar fallback
-    response = orchestrator.process(message, timeout=5000)
+    # Primera extracción falla con pattern viejo
+    with pytest.raises(ExtractionFailedException):
+        await scraper.extract_with_pattern(url, old_pattern)
     
-    assert "momento no puedo" in response
-    assert "intenta en unos minutos" in response
+    # Sistema detecta el fallo y re-analiza
+    new_detected_pattern = await scraper.auto_detect_pattern(url)
+    assert new_detected_pattern["product_selector"] == ".new-product-card"
     
-    # Verificar que se loggeó el error
-    assert len(error_logs) == 1
-    assert error_logs[0].type == "AGENT_TIMEOUT"
+    # Actualiza pattern y reintenta
+    result = await scraper.extract_with_pattern(url, new_detected_pattern)
+    assert len(result.products) > 0
 ```
 
-### E02: LLM No Disponible
+### E02: PDF Corrupto o Ilegible
 ```python
-def test_e02_llm_unavailable():
-    # Simular Groq caído
-    with patch.dict(os.environ, {"GROQ_API_KEY": ""}):
-        
-        agent = CatalogAgent()
-        result = agent.search("tubos")
-        
-        # Debe usar fallback o cache
-        assert result is not None
-        assert result.source == "cache" or result.source == "fallback"
+async def test_e02_corrupted_pdf():
+    """
+    Manejo de PDFs dañados con fallback strategies
+    """
+    corrupted_pdf = "/catalogs/damaged.pdf"
+    
+    processor = PDFProcessor()
+    
+    # Intenta procesar con múltiples estrategias
+    strategies = [
+        "pypdf2",
+        "pdfplumber", 
+        "ocr_full_page",
+        "image_extraction"
+    ]
+    
+    result = await processor.process_with_fallback(corrupted_pdf, strategies)
+    
+    # Aunque esté dañado, algo debe extraer
+    assert result.partial_success == True
+    assert len(result.products) > 0
+    assert result.quality_warning == True
 ```
 
-## 📈 ESCENARIOS DE PERFORMANCE
+## 📈 MÉTRICAS DE PERFORMANCE
 
-### P01: Carga Normal (100 msg/min)
+### P01: Extracción Concurrente Multi-Fuente
 ```python
 @pytest.mark.performance
-async def test_p01_carga_normal():
-    messages = generate_messages(100)
+async def test_p01_concurrent_extraction():
+    """
+    Extraer de 10 fuentes diferentes simultáneamente
+    """
+    sources = [
+        {"type": "mercadolibre", "url": "..."},
+        {"type": "pdf", "path": "..."},
+        {"type": "website", "url": "..."},
+        # ... 7 más
+    ]
     
     start = time.time()
+    
+    # Extracción paralela
     results = await asyncio.gather(*[
-        orchestrator.process(msg) for msg in messages
+        extract_catalog(source) for source in sources
     ])
+    
     duration = time.time() - start
     
-    # Métricas esperadas
-    assert duration < 60  # Menos de 1 minuto
-    assert success_rate(results) > 0.98  # 98% success
-    assert avg_latency(results) < 0.5  # 500ms promedio
-```
-
-### P02: Pico de Carga (1000 msg/min)
-```python
-@pytest.mark.performance
-async def test_p02_pico_carga():
-    # Simular Black Friday
-    messages = generate_messages(1000)
+    # Verificar paralelismo efectivo
+    assert duration < 60  # No más de 1 minuto para 10 fuentes
+    assert all(r.status == "completed" for r in results)
     
-    results = await load_test(messages, duration=60)
-    
-    # Sistema debe mantener SLA
-    assert results.p95_latency < 2.0  # 2 segundos P95
-    assert results.error_rate < 0.05  # 5% error máximo
-    assert results.throughput > 900  # 900+ procesados
+    # Métricas de throughput
+    total_products = sum(len(r.products) for r in results)
+    throughput = total_products / duration
+    assert throughput > 100  # 100+ productos/segundo total
 ```
 
 ## ✅ CHECKLIST DE VALIDACIÓN
@@ -552,20 +791,25 @@ async def test_p02_pico_carga():
 Antes de pasar a producción, TODOS estos escenarios deben:
 
 - [ ] Ejecutarse automáticamente en CI/CD
-- [ ] Pasar con > 95% de éxito
-- [ ] Completarse en < 5 minutos (excepto performance)
-- [ ] Generar métricas de cobertura
-- [ ] Validar multi-tenancy
-- [ ] Probar todos los agentes
-- [ ] Simular errores comunes
-- [ ] Verificar timeouts y retries
+- [ ] Extraer catálogos reales de prueba
+- [ ] Validar normalización multi-fuente
+- [ ] Probar con PDFs escaneados reales
+- [ ] Verificar aislamiento multi-tenant
+- [ ] Manejar sitios con JavaScript
+- [ ] Procesar al menos 10,000 productos
+- [ ] Mantener performance < 100ms por producto
+- [ ] Generar embeddings para búsqueda vectorial
+- [ ] Validar calidad de datos > 90%
 
 ## 📊 MÉTRICAS DE CALIDAD
 
 | Métrica | Target | Actual | Status |
 |---------|--------|--------|--------|
-| Cobertura de código | > 80% | - | ⏳ |
-| Escenarios pasando | 100% | - | ⏳ |
-| Tiempo de ejecución | < 5 min | - | ⏳ |
-| Flaky tests | 0 | - | ⏳ |
-| Performance P95 | < 2s | - | ⏳ |
+| Productos extraídos/hora | > 10,000 | - | ⏳ |
+| Accuracy de extracción | > 95% | - | ⏳ |
+| OCR confidence promedio | > 85% | - | ⏳ |
+| Deduplicación correcta | > 98% | - | ⏳ |
+| Latencia búsqueda vectorial | < 50ms | - | ⏳ |
+| Memory usage por 1000 productos | < 100MB | - | ⏳ |
+| Patterns aprendidos | > 20 | - | ⏳ |
+| Human intervention rate | < 5% | - | ⏳ |

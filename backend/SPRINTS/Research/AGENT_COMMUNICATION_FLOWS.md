@@ -1,480 +1,626 @@
-# 🔄 FLUJOS DE COMUNICACIÓN ENTRE AGENTES - ORKESTA
+# 🔄 AGENT COMMUNICATION FLOWS - ORKESTA
 
-## 🎯 PROBLEMA A RESOLVER
+## 📡 ARQUITECTURA MULTI-AGENTE CON LANGGRAPH
 
-Los agentes necesitan comunicarse de manera:
-- **Asíncrona**: No bloquear mientras esperan respuesta
-- **Confiable**: Garantizar entrega de mensajes
-- **Trazable**: Auditar toda comunicación
-- **Escalable**: Manejar miles de mensajes/segundo
-- **Inteligente**: Enrutar basado en contexto
+### ARQUITECTURAS IMPLEMENTADAS (2024-2025)
 
-## 📊 INVESTIGACIÓN: PATRONES DE ARQUITECTURA (2024-2025)
-
-### 1. **Supervisor Pattern** (LangGraph) ✅ RECOMENDADO
-```
-     [Supervisor Agent]
-      /      |      \
-[Agent A] [Agent B] [Agent C]
-```
-
-**Ventajas:**
-- Control centralizado
-- Fácil de debuggear
-- Decisiones consistentes
-
-**Implementación en Orkesta:**
+#### 1. HIERARCHICAL TEAMS (Principal)
+**Para qué**: Extracción compleja de catálogos con delegación clara
 ```python
-class SupervisorAgent:
-    def route_message(self, message):
-        # Analiza intención
-        intent = self.analyze_intent(message)
-        
-        # Decide qué agente debe responder
-        if intent == "product_search":
-            return self.catalog_agent.process(message)
-        elif intent == "pricing":
-            return self.pricing_agent.process(message)
+# Arquitectura jerárquica con subgrafos especializados
+Catalog Extraction Orchestrator (Supervisor)
+├── Web Scraping Team
+│   ├── MercadoLibre Specialist (con patterns específicos)
+│   ├── Amazon Specialist (maneja variaciones de Amazon)
+│   ├── Generic E-commerce Agent (sitios desconocidos)
+│   └── Dynamic Content Handler (JavaScript/React sites)
+├── Document Processing Team  
+│   ├── PDF Table Extractor (Tesseract OCR + Layout detection)
+│   ├── Image Analyzer (Multi-modal LLM para productos)
+│   ├── Excel/CSV Parser (estructuras complejas)
+│   └── Scanned Catalog OCR (multi-pass processing)
+├── Normalization Pipeline
+│   ├── Schema Detection Agent (identifica estructura)
+│   ├── Data Mapping Agent (crea reglas de transformación)
+│   ├── Validation Agent (quality assurance)
+│   └── Enrichment Agent (completa info faltante)
+└── Integration Team
+    ├── Multi-tenant Router (aislamiento por cliente)
+    ├── Database Writer (PostgreSQL + pgvector)
+    └── Notification Agent (alertas y reportes)
 ```
 
-### 2. **Graph-Based Pattern** (LangGraph)
-```
-[Agent A] --> [Agent B] --> [Agent C]
-     \           /
-      [Agent D]
-```
+#### 2. PLAN-AND-EXECUTE ARCHITECTURE
+**Para qué**: Procesamiento batch de catálogos grandes
+- **Planner**: Analiza el catálogo completo y crea plan detallado
+- **Executor**: Ejecuta el plan con modelos más pequeños/rápidos
+- **Ventaja**: Menos llamadas a LLM, más eficiente en costo
 
-**Ventajas:**
-- Flujos complejos
-- Paralelización
-- Estado compartido
+#### 3. REFLECTION PATTERN (LATS)
+**Para qué**: Auto-corrección y mejora continua
+- Language Agent Tree Search para explorar mejores estrategias
+- Reflection loops para validar calidad de extracción
+- Self-critique para mejorar accuracy
 
-### 3. **Conversational Pattern** (AutoGen)
-```
-[Agent A] <--> [Agent B] <--> [Agent C]
-   ^                             ^
-   |_____________________________|
-```
-
-**Ventajas:**
-- Natural para chat
-- Contexto preservado
-- Flexibilidad
-
-### 4. **Role-Based Pattern** (CrewAI)
-```
-[Manager] assigns tasks to:
-  - [Researcher]
-  - [Writer]  
-  - [Reviewer]
-```
-
-**Ventajas:**
-- Claro ownership
-- Especialización
-- Colaboración estructurada
-
-## 🏗️ ARQUITECTURA PROPUESTA PARA ORKESTA
-
-### Híbrido: Supervisor + Event-Driven
-
-```
-┌─────────────────────────────────────────────────────┐
-│                 ORCHESTRATOR AGENT                   │
-│              (Supervisor + Router)                   │
-└────────────┬────────────────────────────────────────┘
-             │
-      ┌──────┴──────┐ 
-      │  Event Bus  │ (Redis Pub/Sub)
-      └──────┬──────┘
-             │
-    ┌────────┼────────┬────────┬────────┐
-    ▼        ▼        ▼        ▼        ▼
-[Catalog] [Order] [Payment] [Dunning] [WhatsApp]
-  Agent    Agent    Agent     Agent     Agent
-```
-
-## 📝 PROTOCOLOS DE MENSAJES
-
-### Estructura de Mensaje Estándar
+#### 4. COLLABORATIVE AGENTS WITH SHARED MEMORY
+**Para qué**: Agentes especializados trabajando en paralelo
 ```python
-@dataclass
-class AgentMessage:
-    # Identificación
-    id: str = field(default_factory=lambda: str(uuid4()))
-    timestamp: datetime = field(default_factory=datetime.now)
+class CatalogExtractionState(TypedDict):
+    # Estado compartido entre todos los agentes
+    raw_sources: List[str]  # URLs, PDFs, etc
+    extracted_products: List[Product]
+    validation_errors: List[Error]
+    enrichment_suggestions: List[Suggestion]
+    tenant_context: TenantConfig
+    extraction_patterns: Dict[str, Pattern]  # Aprendizaje
+```
+
+## 🛠️ PROTOCOLO DE MENSAJES CON LANGGRAPH
+
+### Estado Base con LangGraph (2024-2025)
+```python
+from typing import TypedDict, List, Annotated, Sequence
+from langgraph.graph import StateGraph, END
+from langgraph.prebuilt import ToolNode
+from langgraph.graph.message import add_messages
+from langgraph.checkpoint.postgres import PostgresSaver
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+
+# Estado para el grafo de extracción de catálogos
+class CatalogExtractionState(TypedDict):
+    # Mensajes con memoria completa
+    messages: Annotated[Sequence[BaseMessage], add_messages]
     
-    # Routing
-    from_agent: str
-    to_agent: str  # Puede ser "broadcast" o específico
-    reply_to: Optional[str] = None  # ID del mensaje original
-    
-    # Contenido
-    message_type: str  # "request", "response", "event", "error"
-    intent: str  # "search_product", "calculate_price", etc.
-    payload: Dict[str, Any]
-    
-    # Control
-    priority: int = 5  # 1-10, donde 10 es urgente
-    timeout_ms: int = 5000
-    requires_ack: bool = True
-    
-    # Contexto
+    # Estado específico del catálogo
+    source_type: str  # "web", "pdf", "api", "image"
+    source_url: str
     tenant_id: str
-    conversation_id: Optional[str] = None
-    customer_id: Optional[str] = None
     
-    # Trazabilidad
-    trace_id: str = field(default_factory=lambda: str(uuid4()))
-    span_id: str = field(default_factory=lambda: str(uuid4()))
+    # Productos extraídos progresivamente
+    raw_products: List[dict]
+    normalized_products: List[dict]
+    validation_results: dict
+    
+    # Patrones aprendidos (para mejorar con el tiempo)
+    extraction_patterns: dict
+    confidence_scores: dict
+    
+    # Control flow
+    next_action: str
+    requires_human_approval: bool
+    error_count: int
+    
+    # Checkpointing para trabajos largos
+    checkpoint_id: str
+    last_checkpoint: str
+
+# Comando para handoffs entre agentes
+class Command(TypedDict):
+    """Comando para navegación dinámica en el grafo"""
+    goto: str  # Nodo destino
+    update: dict  # Actualización de estado
+    interrupt: bool  # Si requiere intervención humana
 ```
 
-### Tipos de Mensajes
+## 🚀 LANGGRAPH STATE MANAGEMENT & PERSISTENCE
 
-#### 1. REQUEST (Agente solicita acción)
+### Configuración con PostgreSQL Checkpointer
 ```python
-message = AgentMessage(
-    from_agent="order_agent",
-    to_agent="catalog_agent",
-    message_type="request",
-    intent="validate_product",
-    payload={
-        "product_id": "p_123",
-        "quantity": 10
-    }
-)
-```
+from langgraph.checkpoint.postgres import PostgresSaver
+from langgraph.graph import StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
+from langchain_groq import ChatGroq
+import asyncpg
+import os
 
-#### 2. RESPONSE (Respuesta a request)
-```python
-response = AgentMessage(
-    from_agent="catalog_agent",
-    to_agent="order_agent",
-    message_type="response",
-    reply_to=message.id,
-    intent="product_validated",
-    payload={
-        "valid": True,
-        "stock_available": 50,
-        "price": 45.50
-    }
-)
-```
-
-#### 3. EVENT (Notificación broadcast)
-```python
-event = AgentMessage(
-    from_agent="payment_agent",
-    to_agent="broadcast",
-    message_type="event",
-    intent="payment_received",
-    payload={
-        "order_id": "ord_123",
-        "amount": 500.00,
-        "method": "stripe"
-    }
-)
-```
-
-#### 4. ERROR (Manejo de errores)
-```python
-error = AgentMessage(
-    from_agent="whatsapp_agent",
-    to_agent="orchestrator",
-    message_type="error",
-    intent="delivery_failed",
-    payload={
-        "error_code": "WA_001",
-        "error_message": "Rate limit exceeded",
-        "retry_after": 60
-    }
-)
-```
-
-## 🔄 FLUJOS DE COMUNICACIÓN PRINCIPALES
-
-### FLUJO 1: Procesamiento de Orden
-```mermaid
-sequenceDiagram
-    Customer->>WhatsApp Agent: "Necesito 10 tubos PVC"
-    WhatsApp Agent->>Orchestrator: Parse intent
-    Orchestrator->>Catalog Agent: Search products
-    Catalog Agent-->>Orchestrator: Found 3 matches
-    Orchestrator->>Order Agent: Create order
-    Order Agent->>Pricing Agent: Calculate total
-    Pricing Agent-->>Order Agent: Total: $455
-    Order Agent->>Payment Agent: Generate link
-    Payment Agent-->>Order Agent: Payment link ready
-    Order Agent-->>WhatsApp Agent: Order confirmed
-    WhatsApp Agent-->>Customer: "Tu pedido está listo"
-```
-
-### FLUJO 2: Cobranza Inteligente
-```mermaid
-sequenceDiagram
-    Scheduler->>Dunning Agent: Check overdue invoices
-    Dunning Agent->>Customer Context: Get payment history
-    Customer Context-->>Dunning Agent: 3 late payments
-    Dunning Agent->>AI Strategy: Determine approach
-    AI Strategy-->>Dunning Agent: Use soft reminder
-    Dunning Agent->>WhatsApp Agent: Send reminder
-    WhatsApp Agent-->>Customer: "Hola, recordatorio amigable..."
-    Customer->>WhatsApp Agent: "Pago mañana"
-    WhatsApp Agent->>Dunning Agent: Promise received
-    Dunning Agent->>Calendar: Schedule follow-up
-```
-
-### FLUJO 3: Inventory Alert
-```mermaid
-sequenceDiagram
-    Inventory Agent->>Orchestrator: Low stock alert
-    Orchestrator->>Prediction Agent: Forecast demand
-    Prediction Agent-->>Orchestrator: High demand expected
-    Orchestrator->>Purchase Agent: Create PO
-    Purchase Agent->>Supplier API: Send order
-    Supplier API-->>Purchase Agent: Confirmed
-    Purchase Agent->>Notification Agent: Alert team
-    Notification Agent->>Team: "PO created for tubes"
-```
-
-## 💻 IMPLEMENTACIÓN TÉCNICA
-
-### 1. Event Bus con Redis
-```python
-import redis
-import json
-from typing import Callable
-
-class AgentEventBus:
+class OrkestaGraphBuilder:
     def __init__(self):
-        self.redis = redis.Redis(decode_responses=True)
-        self.pubsub = self.redis.pubsub()
-        self.handlers = {}
-    
-    def publish(self, message: AgentMessage):
-        # Publicar a canal específico o broadcast
-        channel = f"agent:{message.to_agent}"
-        self.redis.publish(channel, message.json())
-        
-        # Guardar en stream para persistencia
-        self.redis.xadd(
-            f"stream:{message.tenant_id}",
-            {"message": message.json()}
+        # LLM principal con Groq
+        self.llm = ChatGroq(
+            model="llama-3.1-70b-versatile",
+            temperature=0.1,  # Más determinístico para extracción
+            api_key=os.getenv("GROQ_API_KEY")
         )
+        
+        # Checkpointer para persistencia y human-in-the-loop
+        self.checkpointer = PostgresSaver.from_conn_string(
+            "postgresql://user:pass@localhost:5432/orkesta"
+        )
+        
+        # Store para memoria a largo plazo
+        self.store = InMemoryStore()  # O PostgresStore para producción
+        
+    def build_catalog_extraction_graph(self):
+        """Construir el grafo de extracción de catálogos"""
+        workflow = StateGraph(CatalogExtractionState)
+        
+        # Nodos especializados
+        workflow.add_node("source_detector", self.detect_source_type)
+        workflow.add_node("web_scraper_team", self.web_scraping_subgraph())
+        workflow.add_node("pdf_processor_team", self.pdf_processing_subgraph())
+        workflow.add_node("normalizer", self.normalize_products)
+        workflow.add_node("validator", self.validate_with_reflection)
+        workflow.add_node("human_review", self.human_review_interrupt)
+        
+        # Edges condicionales basados en tipo de fuente
+        workflow.add_conditional_edges(
+            "source_detector",
+            self.route_by_source_type,
+            {
+                "web": "web_scraper_team",
+                "pdf": "pdf_processor_team",
+                "needs_human": "human_review"
+            }
+        )
+        
+        # Compilar con checkpointing
+        return workflow.compile(
+            checkpointer=self.checkpointer,
+            interrupt_before=["human_review"]  # Pausa para aprobación
+        )
+```
+
+## 📊 FLUJOS DE COMUNICACIÓN COMPLEJOS
+
+### 1. Flujo de Extracción de Catálogo Complejo (MercadoLibre + PDF)
+```python
+# Ejemplo real de extracción multi-fuente
+async def extract_automotive_catalog():
+    """Extraer catálogo de Equipo Automotriz AVAZ"""
     
-    def subscribe(self, agent_name: str, handler: Callable):
-        # Suscribirse a mensajes directos y broadcast
-        channels = [
-            f"agent:{agent_name}",
-            "agent:broadcast"
+    # Crear grafo con checkpointing
+    graph = OrkestaGraphBuilder().build_catalog_extraction_graph()
+    
+    # Estado inicial con múltiples fuentes
+    initial_state = {
+        "messages": [HumanMessage(
+            "Extraer catálogo completo de AVAZ: "
+            "1. Scrape https://listado.mercadolibre.com.mx/_CustId_123456"
+            "2. Procesar PDF: catalogo_avaz_2024.pdf"
+            "3. Enriquecer con API de proveedores"
+        )],
+        "source_urls": [
+            "https://listado.mercadolibre.com.mx/_CustId_123456",
+            "file:///catalogs/avaz/catalogo_2024.pdf",
+            "api://suppliers/avaz/products"
+        ],
+        "tenant_id": "avaz_automotive",
+        "extraction_config": {
+            "deep_scraping": True,
+            "follow_pagination": True,
+            "extract_images": True,
+            "ocr_quality": "high",
+            "price_monitoring": True
+        }
+    }
+    
+    # Ejecutar con streaming para ver progreso
+    async for event in graph.astream(
+        initial_state,
+        {"configurable": {"thread_id": "avaz_catalog_extraction_001"}}
+    ):
+        if "web_scraper_team" in event:
+            print(f"📦 Productos de MercadoLibre: {len(event['web_scraper_team']['raw_products'])}")
+        elif "pdf_processor_team" in event:
+            print(f"📄 Productos del PDF: {len(event['pdf_processor_team']['raw_products'])}")
+        elif "validator" in event:
+            print(f"✅ Validación: {event['validator']['validation_results']}")
+```
+
+### 2. Flujo con Human-in-the-Loop para Aprobación
+```python
+# Interrupción para revisión humana
+config = {"configurable": {"thread_id": "review_123"}}
+
+# Primera ejecución - se detiene en human_review
+result = await graph.ainvoke(initial_state, config)
+
+if result.get("requires_human_approval"):
+    print("🔍 Revisión requerida:")
+    print(f"- Productos extraídos: {len(result['normalized_products'])}")
+    print(f"- Confianza promedio: {result['confidence_scores']['average']}")
+    
+    # Usuario revisa y aprueba con cambios
+    human_feedback = {
+        "approved": True,
+        "corrections": [
+            {"product_id": "123", "field": "price", "new_value": 450.00}
         ]
-        
-        self.pubsub.subscribe(*channels)
-        self.handlers[agent_name] = handler
+    }
     
-    def listen(self):
-        for message in self.pubsub.listen():
-            if message['type'] == 'message':
-                agent_msg = AgentMessage.parse(message['data'])
-                handler = self.handlers.get(agent_msg.to_agent)
-                if handler:
-                    handler(agent_msg)
+    # Continuar desde checkpoint con feedback
+    final_result = await graph.ainvoke(
+        Command(resume=human_feedback),
+        config
+    )
 ```
 
-### 2. Orchestrator Implementation
+### 3. Flujo de Web Scraping Inteligente con Detección de Patterns
 ```python
-class OrchestratorAgent(BaseAgent):
+# Subgrafo especializado para MercadoLibre
+class MercadoLibreScraperGraph:
     def __init__(self):
-        super().__init__("orchestrator")
-        self.agents = {}
-        self.routing_rules = {}
+        self.workflow = StateGraph(ScrapingState)
         
-    async def route_message(self, message: AgentMessage):
-        # Analizar intención con IA
-        intent_analysis = await self.analyze_intent(message)
+    def build(self):
+        # Nodos especializados para MercadoLibre
+        self.workflow.add_node("detect_layout", self.detect_page_layout)
+        self.workflow.add_node("extract_listings", self.extract_product_listings)
+        self.workflow.add_node("extract_details", self.extract_product_details)
+        self.workflow.add_node("handle_pagination", self.handle_pagination)
+        self.workflow.add_node("extract_images", self.extract_and_analyze_images)
         
-        # Determinar agente destino
-        target_agent = self.routing_rules.get(
-            intent_analysis['intent'],
-            'fallback_agent'
+        # Routing inteligente
+        self.workflow.add_conditional_edges(
+            "detect_layout",
+            self.route_by_layout,
+            {
+                "grid": "extract_listings",
+                "list": "extract_listings",
+                "single": "extract_details",
+                "unknown": "fallback_extractor"
+            }
         )
         
-        # Enrutar mensaje
-        routed_message = AgentMessage(
-            **message.dict(),
-            to_agent=target_agent
+        return self.workflow.compile()
+    
+    async def extract_product_listings(self, state: ScrapingState):
+        """Extracción inteligente con patterns aprendidos"""
+        
+        # Usar patterns guardados si existen
+        if state.get("learned_patterns"):
+            products = await self.apply_learned_patterns(state)
+        else:
+            # Detección automática de estructura
+            products = await self.auto_detect_structure(state)
+            
+            # Guardar patterns exitosos
+            if products and len(products) > 0:
+                state["learned_patterns"] = self.extract_patterns(products)
+        
+        # Validación con LLM
+        validated = await self.validate_with_llm(products)
+        
+        return {"products": validated, "confidence": 0.95}
+```
+
+### 4. Flujo de Normalización con Schema Detection
+```python
+# Pipeline de normalización inteligente
+class NormalizationPipeline:
+    def __init__(self):
+        self.schema_detector = SchemaDetectionAgent()
+        self.mapper = DataMappingAgent()
+        self.validator = ValidationAgent()
+        
+    async def normalize_batch(self, raw_products: List[dict]) -> List[Product]:
+        """Normalización inteligente de productos diversos"""
+        
+        # 1. Detectar schema automáticamente
+        detected_schema = await self.schema_detector.detect(raw_products)
+        
+        # 2. Crear mapping rules con LLM
+        mapping_rules = await self.mapper.create_rules(
+            source_schema=detected_schema,
+            target_schema=ProductSchema,
+            examples=raw_products[:5]
         )
         
-        await self.event_bus.publish(routed_message)
+        # 3. Aplicar transformaciones
+        normalized = []
+        for product in raw_products:
+            try:
+                normalized_product = await self.mapper.apply_rules(
+                    product, 
+                    mapping_rules
+                )
+                
+                # 4. Validar y enriquecer
+                validated = await self.validator.validate(
+                    normalized_product,
+                    confidence_threshold=0.8
+                )
+                
+                if validated.is_valid:
+                    normalized.append(validated.product)
+                else:
+                    # Intentar auto-corrección
+                    corrected = await self.auto_correct(validated)
+                    if corrected:
+                        normalized.append(corrected)
+                        
+            except Exception as e:
+                # Log para mejorar patterns
+                await self.log_extraction_error(product, e)
         
-    async def analyze_intent(self, message: AgentMessage):
-        prompt = f"""
-        Analiza este mensaje y determina la intención:
-        Mensaje: {message.payload.get('text')}
+        return normalized
+```
+
+## 🧠 AGENTES ESPECIALIZADOS COMPLEJOS
+
+### 1. PDF Processing Agent con OCR Multi-Pass
+```python
+class PDFProcessingAgent:
+    """Agente especializado en procesamiento de PDFs complejos"""
+    
+    def __init__(self):
+        self.ocr_engine = TesseractOCR()
+        self.layout_detector = LayoutDetector()
+        self.table_extractor = CamelotTableExtractor()
+        self.llm = ChatGroq(model="llama-3.1-70b")
         
-        Intenciones posibles:
-        - search_product: Buscar productos
-        - create_order: Crear pedido
-        - check_price: Consultar precio
-        - payment_status: Estado de pago
-        - general_question: Pregunta general
+    async def process_pdf(self, pdf_path: str, tenant_config: dict):
+        """Procesamiento multi-pass de PDF"""
         
-        Responde en JSON: {{"intent": "...", "confidence": 0.0-1.0}}
+        # Pass 1: Detección de layout
+        layout = await self.layout_detector.analyze(pdf_path)
+        
+        # Pass 2: Extracción por tipo de contenido
+        extracted_content = {
+            "tables": [],
+            "images": [],
+            "text": []
+        }
+        
+        for page in layout.pages:
+            # Extraer tablas
+            if page.has_tables:
+                tables = await self.table_extractor.extract(page)
+                extracted_content["tables"].extend(tables)
+            
+            # OCR en imágenes
+            if page.has_images:
+                for image in page.images:
+                    ocr_text = await self.ocr_engine.process(
+                        image,
+                        confidence_threshold=0.8,
+                        language="spa+eng"
+                    )
+                    
+                    # Validar con LLM
+                    validated = await self.llm.invoke(
+                        f"¿Es esto un producto? {ocr_text}"
+                    )
+                    
+                    if validated.is_product:
+                        extracted_content["images"].append({
+                            "image": image,
+                            "text": ocr_text,
+                            "confidence": validated.confidence
+                        })
+        
+        # Pass 3: Consolidación y normalización
+        products = await self.consolidate_products(extracted_content)
+        
+        # Pass 4: Validación con reflection
+        final_products = await self.validate_with_reflection(products)
+        
+        return final_products
+```
+
+### 2. Web Scraping Agent con Pattern Learning
+```python
+class IntelligentWebScrapingAgent:
+    """Agente que aprende patterns de scraping"""
+    
+    def __init__(self):
+        self.pattern_db = PatternDatabase()
+        self.selenium_driver = SeleniumDriver()
+        self.beautifulsoup = BeautifulSoupParser()
+        
+    async def scrape_with_learning(self, url: str):
+        """Scraping inteligente con aprendizaje de patterns"""
+        
+        domain = extract_domain(url)
+        
+        # Buscar patterns existentes
+        existing_patterns = await self.pattern_db.get_patterns(domain)
+        
+        if existing_patterns:
+            # Usar patterns conocidos
+            products = await self.apply_patterns(url, existing_patterns)
+            
+            # Validar efectividad
+            if self.validate_extraction(products):
+                return products
+        
+        # Si no hay patterns o fallaron, detectar nuevos
+        new_patterns = await self.detect_patterns(url)
+        
+        # Aplicar y validar nuevos patterns
+        products = await self.apply_patterns(url, new_patterns)
+        
+        if self.validate_extraction(products):
+            # Guardar patterns exitosos
+            await self.pattern_db.save_patterns(domain, new_patterns)
+            
+        return products
+    
+    async def detect_patterns(self, url: str):
+        """Detección automática de patterns con LLM"""
+        
+        # Obtener HTML
+        html = await self.selenium_driver.get_page(url)
+        
+        # Analizar estructura con LLM
+        analysis_prompt = f"""
+        Analiza esta estructura HTML y detecta patterns para extraer productos:
+        {html[:5000]}
+        
+        Identifica:
+        1. Selectores CSS para productos
+        2. Estructura de datos
+        3. Paginación
+        4. Precios y disponibilidad
         """
         
-        response = await self.llm.chat(prompt, json_mode=True)
-        return json.loads(response)
+        patterns = await self.llm.analyze(analysis_prompt)
+        
+        return patterns
 ```
 
-### 3. Agent Response Handling
+### 3. Data Enrichment Agent
 ```python
-class CatalogAgent(BaseAgent):
-    async def handle_message(self, message: AgentMessage):
-        if message.intent == "search_product":
-            # Buscar productos
-            results = await self.search_products(
-                message.payload['query']
+class DataEnrichmentAgent:
+    """Agente que enriquece productos con datos externos"""
+    
+    def __init__(self):
+        self.google_search = GoogleSearchAPI()
+        self.price_apis = [MercadoLibreAPI(), AmazonAPI()]
+        self.image_search = GoogleImageSearch()
+        
+    async def enrich_product(self, product: dict):
+        """Enriquecimiento multi-fuente"""
+        
+        enriched = product.copy()
+        
+        # 1. Buscar imágenes si faltan
+        if not enriched.get("images"):
+            images = await self.image_search.find(
+                f"{product['name']} {product.get('brand', '')}"
             )
-            
-            # Responder
-            response = AgentMessage(
-                from_agent=self.name,
-                to_agent=message.from_agent,
-                message_type="response",
-                reply_to=message.id,
-                intent="products_found",
-                payload={"products": results}
-            )
-            
-            await self.event_bus.publish(response)
-```
-
-## 📊 MONITOREO Y OBSERVABILIDAD
-
-### Métricas Clave
-```python
-# Prometheus metrics
-agent_messages_total = Counter(
-    'agent_messages_total',
-    'Total messages processed',
-    ['from_agent', 'to_agent', 'message_type']
-)
-
-agent_message_latency = Histogram(
-    'agent_message_latency_seconds',
-    'Message processing latency',
-    ['agent', 'intent']
-)
-
-agent_errors_total = Counter(
-    'agent_errors_total',
-    'Total errors in agent communication',
-    ['agent', 'error_type']
-)
-```
-
-### Tracing Distribuido
-```python
-from opentelemetry import trace
-
-tracer = trace.get_tracer(__name__)
-
-class TracedAgent(BaseAgent):
-    async def process_message(self, message: AgentMessage):
-        with tracer.start_as_current_span(
-            f"agent.{self.name}.process",
-            attributes={
-                "message.id": message.id,
-                "message.intent": message.intent,
-                "tenant.id": message.tenant_id
-            }
-        ) as span:
+            enriched["images"] = images[:3]
+        
+        # 2. Comparar precios
+        price_comparison = []
+        for api in self.price_apis:
             try:
-                result = await self._process(message)
-                span.set_status(Status(StatusCode.OK))
-                return result
-            except Exception as e:
-                span.record_exception(e)
-                span.set_status(Status(StatusCode.ERROR))
-                raise
+                competitor_price = await api.get_price(product["sku"])
+                price_comparison.append({
+                    "source": api.name,
+                    "price": competitor_price
+                })
+            except:
+                continue
+        
+        enriched["price_comparison"] = price_comparison
+        
+        # 3. Obtener descripción completa si falta
+        if not enriched.get("description") or len(enriched["description"]) < 50:
+            search_result = await self.google_search.search(
+                f"{product['name']} descripción especificaciones"
+            )
+            
+            # Usar LLM para extraer descripción relevante
+            description = await self.llm.extract(
+                f"Extrae una descripción de producto de: {search_result}"
+            )
+            
+            enriched["description"] = description
+        
+        # 4. Categorización automática
+        if not enriched.get("category"):
+            category = await self.llm.categorize(product)
+            enriched["category"] = category
+        
+        return enriched
 ```
 
-## 🧪 ESCENARIOS DE PRUEBA
+## 📈 MONITOREO Y MÉTRICAS
 
-### Escenario 1: Happy Path
+### Dashboard de Agentes en Tiempo Real
 ```python
-async def test_order_flow():
-    # Cliente envía mensaje
-    customer_message = "Necesito 10 tubos PVC"
+class AgentMonitor:
+    """Monitor en tiempo real de todos los agentes"""
     
-    # WhatsApp agent recibe
-    wa_agent.receive(customer_message)
-    
-    # Verificar que catalog agent fue llamado
-    assert catalog_agent.called_with("tubos PVC")
-    
-    # Verificar orden creada
-    assert order_agent.order_created
-    
-    # Verificar respuesta al cliente
-    assert "Tu pedido está confirmado" in wa_agent.last_response
+    def __init__(self):
+        self.metrics = {}
+        self.prometheus = PrometheusClient()
+        
+    async def track_agent_performance(self):
+        """Métricas detalladas por agente"""
+        
+        return {
+            "web_scraping_team": {
+                "productos_extraidos": 1234,
+                "sitios_procesados": 45,
+                "errores": 3,
+                "latencia_promedio": "234ms",
+                "patterns_aprendidos": 12
+            },
+            "pdf_processing_team": {
+                "pdfs_procesados": 67,
+                "paginas_analizadas": 890,
+                "ocr_accuracy": 0.94,
+                "tablas_extraidas": 234
+            },
+            "normalization_pipeline": {
+                "productos_normalizados": 2340,
+                "schemas_detectados": 8,
+                "mapping_rules_creadas": 45,
+                "validation_rate": 0.92
+            }
+        }
 ```
 
-### Escenario 2: Error Handling
-```python
-async def test_agent_timeout():
-    # Simular agente que no responde
-    catalog_agent.simulate_timeout()
-    
-    # Enviar request
-    message = AgentMessage(
-        from_agent="order",
-        to_agent="catalog",
-        timeout_ms=1000
-    )
-    
-    # Verificar timeout handling
-    with pytest.raises(TimeoutError):
-        await orchestrator.route_message(message)
-    
-    # Verificar fallback
-    assert fallback_agent.was_called
-```
+## 🎯 CASOS DE USO ESPECÍFICOS
 
-### Escenario 3: Load Testing
+### Caso 1: Catálogo AVAZ Automotive
 ```python
-async def test_high_load():
-    # Enviar 1000 mensajes concurrentes
-    messages = [
-        create_random_message() 
-        for _ in range(1000)
-    ]
-    
-    start = time.time()
-    await asyncio.gather(*[
-        orchestrator.route_message(msg) 
-        for msg in messages
-    ])
-    duration = time.time() - start
-    
-    # Verificar performance
-    assert duration < 10  # Menos de 10 segundos
-    assert success_rate > 0.95  # 95% success
+# Configuración específica para AVAZ
+avaz_config = {
+    "tenant_id": "avaz_automotive",
+    "sources": [
+        {
+            "type": "mercadolibre",
+            "url": "https://listado.mercadolibre.com.mx/_CustId_AVAZ",
+            "config": {
+                "follow_all_pages": True,
+                "extract_variations": True,
+                "monitor_prices": True
+            }
+        },
+        {
+            "type": "pdf",
+            "path": "/catalogs/avaz/master_catalog_2024.pdf",
+            "config": {
+                "ocr_quality": "high",
+                "extract_tables": True,
+                "multi_column": True
+            }
+        },
+        {
+            "type": "website",
+            "url": "https://avaz.com.mx/catalogo",
+            "config": {
+                "javascript_render": True,
+                "wait_for_ajax": True
+            }
+        }
+    ],
+    "enrichment": {
+        "cross_reference": True,
+        "competitor_pricing": True,
+        "image_search": True
+    },
+    "validation": {
+        "required_fields": ["sku", "name", "price", "category"],
+        "price_range": [10, 50000],
+        "confidence_threshold": 0.85
+    }
+}
+
+# Ejecutar extracción completa
+async def extract_avaz_catalog():
+    graph = build_extraction_graph(avaz_config)
+    result = await graph.ainvoke(avaz_config)
+    return result
 ```
 
 ## ✅ DECISIONES CLAVE
 
-1. **Redis como Event Bus**: Rápido, confiable, soporta pub/sub y streams
-2. **Mensajes estructurados**: Schema consistente para todos los agentes
-3. **Orchestrator centralizado**: Simplifica routing y debugging
-4. **Timeout y retry automático**: Resiliencia built-in
-5. **Tracing distribuido**: Observabilidad end-to-end
+1. **LangGraph sobre otras opciones**: Mejor soporte para grafos complejos y checkpointing
+2. **Hierarchical Teams**: Permite especialización y escalabilidad
+3. **PostgreSQL para persistencia**: Checkpointing y vector search en un solo lugar
+4. **Groq como LLM principal**: Rápido y costo-efectivo
+5. **Pattern Learning**: Los agentes mejoran con el tiempo
+6. **Human-in-the-Loop**: Control cuando la confianza es baja
 
 ## 🚀 PRÓXIMOS PASOS
 
-1. Implementar AgentMessage y EventBus
-2. Crear OrchestratorAgent base
-3. Definir routing rules
-4. Implementar primeros 3 agentes
-5. Testing de integración
-6. Monitoreo con Prometheus/Grafana
+1. Implementar OrkestaGraphBuilder base
+2. Crear subgrafos especializados (Web, PDF, API)
+3. Configurar PostgreSQL con pgvector
+4. Implementar pattern database
+5. Testing con catálogos reales
+6. Dashboard de monitoreo
