@@ -3,7 +3,7 @@ Main LangGraph builder for Orkesta catalog extraction system
 """
 from typing import Dict, Any, List, Optional, Literal
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.postgres import PostgresSaver
+# from langgraph.checkpoint.postgres import PostgresSaver  # TODO: Install langgraph-postgres separately
 from langgraph.prebuilt import ToolNode
 from langchain_core.messages import HumanMessage, AIMessage
 import asyncio
@@ -39,15 +39,17 @@ class OrkestaGraphBuilder:
     
     def _setup_checkpointer(self):
         """Setup PostgreSQL checkpointer for workflow persistence"""
-        try:
-            self.checkpointer = PostgresSaver.from_conn_string(
-                config.database.url
-            )
-            self.logger.info("PostgreSQL checkpointer initialized")
-        except Exception as e:
-            self.logger.error(f"Failed to setup checkpointer: {e}")
-            # For development, we can work without checkpointing
-            self.checkpointer = None
+        # TODO: Enable when langgraph-postgres is installed
+        # try:
+        #     self.checkpointer = PostgresSaver.from_conn_string(
+        #         config.database.url
+        #     )
+        #     self.logger.info("PostgreSQL checkpointer initialized")
+        # except Exception as e:
+        #     self.logger.error(f"Failed to setup checkpointer: {e}")
+        #     # For development, we can work without checkpointing
+        #     self.checkpointer = None
+        self.checkpointer = None  # Disabled for testing
     
     def build_main_graph(self) -> StateGraph:
         """

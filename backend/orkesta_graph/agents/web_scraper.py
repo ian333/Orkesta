@@ -51,8 +51,9 @@ class MercadoLibreExtractor:
             ".ui-search-price__part"
         ],
         "product_images": [
-            ".ui-search-result-image__element img",
-            ".ui-search-result__image img"
+            "img.ui-search-result-image__element",
+            ".ui-search-result__image img",
+            ".ui-search-result img"
         ],
         "product_links": [
             ".ui-search-item__group__element a",

@@ -183,7 +183,7 @@ class CatalogExtractionState(TypedDict):
     last_checkpoint_at: Optional[datetime]
     
     # Checkpointing for long-running jobs
-    checkpoint_id: str
+    job_checkpoint_id: str  # Renamed to avoid conflict with LangGraph reserved name
     checkpoint_data: Dict[str, Any]
 
 
@@ -330,7 +330,7 @@ def create_initial_state(
         started_at=datetime.utcnow(),
         estimated_completion=None,
         last_checkpoint_at=None,
-        checkpoint_id=str(uuid.uuid4()),
+        job_checkpoint_id=str(uuid.uuid4()),
         checkpoint_data={}
     )
 

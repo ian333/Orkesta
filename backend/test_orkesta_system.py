@@ -466,18 +466,35 @@ class TestS04MultiSourceNormalization:
                         if sku not in deduplicated or product["price"] > deduplicated[sku]["price"]:
                             deduplicated[sku] = product
                     
+                    deduplicated_list = list(deduplicated.values())
                     mock_agent.process.return_value = {
                         **initial_state,
-                        "normalized_products": list(deduplicated.values()),
+                        "normalized_products": deduplicated_list,
                         "current_step": "normalization_completed"
                     }
                 elif "consolidator" in agent_name:
+                    # Usar los productos deduplicados ya definidos
+                    all_products = ml_products + pdf_products + web_products
+                    deduplicated = {}
+                    for product in all_products:
+                        sku = product.get("sku")
+                        if sku not in deduplicated or product["price"] > deduplicated[sku]["price"]:
+                            deduplicated[sku] = product
+                    
                     mock_agent.process.return_value = {
                         **initial_state,
                         "consolidated_products": list(deduplicated.values()),
                         "current_step": "consolidation_completed"
                     }
                 elif "validator" in agent_name:
+                    # Usar los productos deduplicados ya definidos
+                    all_products = ml_products + pdf_products + web_products
+                    deduplicated = {}
+                    for product in all_products:
+                        sku = product.get("sku")
+                        if sku not in deduplicated or product["price"] > deduplicated[sku]["price"]:
+                            deduplicated[sku] = product
+                    
                     mock_agent.process.return_value = {
                         **initial_state,
                         "final_products": list(deduplicated.values()),
@@ -626,6 +643,7 @@ class TestPerformanceAndLoad:
     Tests de performance para cargas masivas y concurrencia
     """
     
+    @pytest.mark.asyncio
     @pytest.mark.performance
     @pytest.mark.timeout(300)  # 5 minutos máximo
     async def test_p01_concurrent_multi_source_extraction(self):
@@ -676,6 +694,7 @@ class TestPerformanceAndLoad:
         throughput = total_products / duration
         assert throughput > 100  # Más de 100 productos/segundo
     
+    @pytest.mark.asyncio
     @pytest.mark.memory_test
     async def test_memory_usage_monitoring(self):
         """Test de uso de memoria durante procesamiento"""
@@ -769,6 +788,7 @@ class TestFullSystemIntegration:
     Test de integración del sistema completo end-to-end
     """
     
+    @pytest.mark.asyncio
     @pytest.mark.integration
     @pytest.mark.timeout(600)  # 10 minutos
     async def test_full_catalog_extraction_pipeline(self):

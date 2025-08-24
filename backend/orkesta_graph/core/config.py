@@ -2,7 +2,7 @@
 Configuration management for Orkesta Graph system
 """
 from typing import Dict, Any, List, Optional
-from pydantic import BaseSettings, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings
 import os
 from pathlib import Path
@@ -164,10 +164,12 @@ class OrkestaConfig(BaseSettings):
     ocr: OCRConfig = Field(default_factory=OCRConfig)
     extraction: ExtractionConfig = Field(default_factory=ExtractionConfig)
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": False,
+        "extra": "ignore"  # Ignore extra fields from .env
+    }
 
 
 # Global configuration instance
