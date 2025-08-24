@@ -72,7 +72,15 @@ class OCREngine:
                 logging.warning(f"EasyOCR initialization failed: {e}")
     
     async def extract_text_multi_engine(self, image: Image.Image) -> Dict[str, Any]:
-        """Extract text using multiple OCR engines and combine results"""
+        """
+        Extrae texto usando múltiples motores OCR y combina resultados.
+        
+        Args:
+            image: Imagen PIL para procesar con OCR
+            
+        Returns:
+            Diccionario con texto extraído, confianza, motor usado y todos los resultados
+        """
         
         results = {}
         
@@ -159,7 +167,15 @@ class OCREngine:
         }
     
     def _select_best_ocr_result(self, results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-        """Select the best OCR result based on confidence and word count"""
+        """
+        Selecciona el mejor resultado OCR basado en confianza y conteo de palabras.
+        
+        Args:
+            results: Diccionario con resultados de cada motor OCR
+            
+        Returns:
+            Mejor resultado con texto, confianza y motor utilizado
+        """
         
         best_score = 0
         best_result = {'text': '', 'confidence': 0.0, 'engine': 'none'}
@@ -188,7 +204,16 @@ class TableExtractor:
     
     @staticmethod
     async def extract_tables_camelot(pdf_path: str, pages: List[int] = None) -> List[Dict[str, Any]]:
-        """Extract tables using Camelot"""
+        """
+        Extrae tablas de PDF usando Camelot con métodos lattice y stream.
+        
+        Args:
+            pdf_path: Ruta al archivo PDF
+            pages: Lista de páginas a procesar (None = todas)
+            
+        Returns:
+            Lista de tablas extraídas con datos y metadatos
+        """
         
         tables = []
         
@@ -237,7 +262,16 @@ class TableExtractor:
     
     @staticmethod
     async def extract_tables_tabula(pdf_path: str, pages: List[int] = None) -> List[Dict[str, Any]]:
-        """Extract tables using Tabula"""
+        """
+        Extrae tablas de PDF usando Tabula como método alternativo.
+        
+        Args:
+            pdf_path: Ruta al archivo PDF
+            pages: Lista de páginas a procesar (None = todas)
+            
+        Returns:
+            Lista de tablas en formato DataFrame convertido a diccionarios
+        """
         
         tables = []
         
@@ -291,7 +325,16 @@ class ProductExtractorPDF:
     
     @classmethod
     def extract_products_from_text(cls, text: str, confidence: float) -> List[Dict[str, Any]]:
-        """Extract products from text using pattern matching"""
+        """
+        Extrae productos del texto usando patrones regex especializados.
+        
+        Args:
+            text: Texto extraído del PDF
+            confidence: Confianza del OCR (0-1)
+            
+        Returns:
+            Lista de productos identificados con nombre, precio y metadatos
+        """
         
         products = []
         lines = text.split('\n')
@@ -353,7 +396,15 @@ class ProductExtractorPDF:
     
     @classmethod
     def _is_likely_product_name(cls, name: str) -> bool:
-        """Check if text looks like a product name"""
+        """
+        Verifica si el texto parece un nombre de producto válido.
+        
+        Args:
+            name: Texto candidato a nombre de producto
+            
+        Returns:
+            True si el texto cumple criterios de nombre de producto
+        """
         
         # Filter out common non-product patterns
         excluded_patterns = [
@@ -392,7 +443,16 @@ class PDFProcessingAgent(BaseAgent):
         self.product_extractor = ProductExtractorPDF()
     
     async def process(self, state: CatalogExtractionState, **kwargs) -> CatalogExtractionState:
-        """Process PDF sources for product extraction"""
+        """
+        Procesa fuentes PDF para extraer catálogos de productos.
+        
+        Args:
+            state: Estado actual del pipeline de extracción
+            **kwargs: Argumentos adicionales opcionales
+            
+        Returns:
+            Estado actualizado con productos extraídos de PDFs
+        """
         
         self.logger.info("Starting PDF processing")
         
@@ -439,7 +499,15 @@ class PDFProcessingAgent(BaseAgent):
             return self.add_error(state, error_msg)
     
     async def _process_pdf_file(self, pdf_path: str) -> List[Dict[str, Any]]:
-        """Process single PDF file"""
+        """
+        Procesa un archivo PDF individual con múltiples técnicas de extracción.
+        
+        Args:
+            pdf_path: Ruta al archivo PDF
+            
+        Returns:
+            Lista de productos únicos extraídos del PDF
+        """
         
         self.logger.info(f"Processing PDF: {pdf_path}")
         
@@ -481,7 +549,16 @@ class PDFProcessingAgent(BaseAgent):
             return []
     
     async def _extract_from_tables(self, pdf_path: str, pages: List[int]) -> List[Dict[str, Any]]:
-        """Extract products from PDF tables"""
+        """
+        Extrae productos de tablas en el PDF usando Camelot y Tabula.
+        
+        Args:
+            pdf_path: Ruta al archivo PDF
+            pages: Páginas a procesar
+            
+        Returns:
+            Lista de productos encontrados en tablas
+        """
         
         products = []
         
@@ -515,7 +592,15 @@ class PDFProcessingAgent(BaseAgent):
         return products
     
     def _extract_products_from_table(self, table_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Extract products from table data"""
+        """
+        Extrae productos de datos tabulares analizando columnas.
+        
+        Args:
+            table_data: Datos de tabla como lista de diccionarios
+            
+        Returns:
+            Lista de productos con nombre, precio y stock si disponible
+        """
         
         if not table_data or len(table_data) < 2:
             return []
@@ -575,7 +660,16 @@ class PDFProcessingAgent(BaseAgent):
         return products[:30]  # Limit results
     
     def _find_column_by_keywords(self, headers: List[str], keywords: List[str]) -> Optional[str]:
-        """Find column name by keywords"""
+        """
+        Encuentra nombre de columna por palabras clave.
+        
+        Args:
+            headers: Lista de encabezados de columna
+            keywords: Palabras clave a buscar
+            
+        Returns:
+            Nombre de columna coincidente o None
+        """
         
         for header in headers:
             header_lower = header.lower().strip()
@@ -586,7 +680,16 @@ class PDFProcessingAgent(BaseAgent):
         return None
     
     async def _extract_from_text_ocr(self, pdf_document, pages: List[int]) -> List[Dict[str, Any]]:
-        """Extract products using OCR on PDF pages"""
+        """
+        Extrae productos usando OCR multi-motor en páginas PDF.
+        
+        Args:
+            pdf_document: Documento PDF abierto con PyMuPDF
+            pages: Lista de páginas a procesar
+            
+        Returns:
+            Lista de productos extraídos con OCR
+        """
         
         all_products = []
         
@@ -633,7 +736,15 @@ class PDFProcessingAgent(BaseAgent):
         return all_products
     
     def _deduplicate_pdf_products(self, products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Remove duplicate products from same PDF"""
+        """
+        Elimina productos duplicados del mismo PDF priorizando por confianza.
+        
+        Args:
+            products: Lista de productos posiblemente duplicados
+            
+        Returns:
+            Lista de productos únicos ordenados por confianza
+        """
         
         if not products:
             return products
@@ -656,7 +767,15 @@ class PDFProcessingAgent(BaseAgent):
         return unique_products
     
     async def _download_pdf(self, url: str) -> Optional[str]:
-        """Download PDF from URL to temporary file"""
+        """
+        Descarga PDF desde URL a archivo temporal.
+        
+        Args:
+            url: URL del PDF a descargar
+            
+        Returns:
+            Ruta al archivo temporal o None si falla
+        """
         
         try:
             import aiohttp

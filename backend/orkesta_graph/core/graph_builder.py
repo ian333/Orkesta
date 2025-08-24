@@ -38,7 +38,12 @@ class OrkestaGraphBuilder:
         self.agents = {}
     
     def _setup_checkpointer(self):
-        """Setup PostgreSQL checkpointer for workflow persistence"""
+        """
+        Configura el checkpointer de PostgreSQL para persistencia del workflow.
+        
+        Actualmente deshabilitado para testing. Cuando se habilite,
+        permite guardar el estado del workflow entre ejecuciones.
+        """
         # TODO: Enable when langgraph-postgres is installed
         # try:
         #     self.checkpointer = PostgresSaver.from_conn_string(
@@ -53,10 +58,13 @@ class OrkestaGraphBuilder:
     
     def build_main_graph(self) -> StateGraph:
         """
-        Build the main catalog extraction workflow
+        Construye el workflow principal de extracción de catálogos.
+        
+        Define todos los nodos del grafo, sus conexiones y la lógica
+        de enrutamiento condicional entre las diferentes etapas.
         
         Returns:
-            Compiled StateGraph ready for execution
+            StateGraph compilado y listo para ejecución
         """
         
         # Create the main workflow graph
@@ -138,7 +146,15 @@ class OrkestaGraphBuilder:
     # Node implementations
     
     async def _initialize_job(self, state: CatalogExtractionState) -> CatalogExtractionState:
-        """Initialize the extraction job"""
+        """
+        Inicializa el trabajo de extracción con metadatos y configuración.
+        
+        Args:
+            state: Estado inicial del pipeline
+            
+        Returns:
+            Estado actualizado con información de inicialización
+        """
         
         self.logger.info(f"Initializing job {state['job_id']} for tenant {state['tenant_id']}")
         
@@ -158,7 +174,15 @@ class OrkestaGraphBuilder:
         }
     
     async def _detect_source_types(self, state: CatalogExtractionState) -> CatalogExtractionState:
-        """Analyze and categorize all sources"""
+        """
+        Analiza y categoriza todas las fuentes de datos por tipo.
+        
+        Args:
+            state: Estado con lista de fuentes
+            
+        Returns:
+            Estado con análisis de fuentes y estrategia de extracción
+        """
         
         self.logger.info("Detecting source types and planning extraction strategy")
         
@@ -195,7 +219,15 @@ class OrkestaGraphBuilder:
         }
     
     def _route_by_source_type(self, state: CatalogExtractionState) -> str:
-        """Determine routing based on source types"""
+        """
+        Determina el enrutamiento basado en los tipos de fuente detectados.
+        
+        Args:
+            state: Estado con fuentes analizadas
+            
+        Returns:
+            Nombre del siguiente nodo según tipos de fuente
+        """
         
         source_types = set(source.type for source in state["sources"])
         
@@ -217,7 +249,15 @@ class OrkestaGraphBuilder:
             return "mixed"
     
     async def _route_to_web_scraping(self, state: CatalogExtractionState) -> CatalogExtractionState:
-        """Route to web scraping subgraph"""
+        """
+        Enruta al agente de web scraping para procesar fuentes web.
+        
+        Args:
+            state: Estado del pipeline
+            
+        Returns:
+            Estado actualizado con productos extraídos de la web
+        """
         
         # Get web scraping agent from registry
         web_agent = AgentRegistry.get_agent("web_scraper")
@@ -238,7 +278,15 @@ class OrkestaGraphBuilder:
             }
     
     async def _route_to_pdf_processing(self, state: CatalogExtractionState) -> CatalogExtractionState:
-        """Route to PDF processing subgraph"""
+        """
+        Enruta al agente de procesamiento PDF para extraer catálogos.
+        
+        Args:
+            state: Estado del pipeline
+            
+        Returns:
+            Estado actualizado con productos extraídos de PDFs
+        """
         
         # Get PDF processing agent from registry
         pdf_agent = AgentRegistry.get_agent("pdf_processor")
@@ -274,7 +322,15 @@ class OrkestaGraphBuilder:
         }
     
     async def _normalize_products(self, state: CatalogExtractionState) -> CatalogExtractionState:
-        """Normalize products from all sources"""
+        """
+        Normaliza productos de todas las fuentes a formato estándar.
+        
+        Args:
+            state: Estado con productos crudos
+            
+        Returns:
+            Estado con productos normalizados y estructurados
+        """
         
         normalization_agent = AgentRegistry.get_agent("normalizer")
         
@@ -294,7 +350,15 @@ class OrkestaGraphBuilder:
             }
     
     async def _consolidate_products(self, state: CatalogExtractionState) -> CatalogExtractionState:
-        """Consolidate and deduplicate products"""
+        """
+        Consolida y deduplica productos de múltiples fuentes.
+        
+        Args:
+            state: Estado con productos normalizados
+            
+        Returns:
+            Estado con productos consolidados sin duplicados
+        """
         
         consolidation_agent = AgentRegistry.get_agent("consolidator")
         
@@ -314,7 +378,15 @@ class OrkestaGraphBuilder:
             }
     
     async def _validate_quality(self, state: CatalogExtractionState) -> CatalogExtractionState:
-        """Validate overall quality of extracted data"""
+        """
+        Valida la calidad general de los datos extraídos.
+        
+        Args:
+            state: Estado con productos consolidados
+            
+        Returns:
+            Estado con resultados de validación y puntaje de calidad
+        """
         
         validator_agent = AgentRegistry.get_agent("validator")
         
@@ -342,7 +414,15 @@ class OrkestaGraphBuilder:
             }
     
     def _route_by_quality(self, state: CatalogExtractionState) -> str:
-        """Route based on quality validation results"""
+        """
+        Enruta según los resultados de validación de calidad.
+        
+        Args:
+            state: Estado con resultados de validación
+            
+        Returns:
+            Siguiente nodo: approved, needs_review, retry o failed
+        """
         
         validation_results = state.get("validation_results", {})
         quality_score = validation_results.get("quality_score", 0.0)
@@ -365,7 +445,15 @@ class OrkestaGraphBuilder:
                 return "failed"
     
     async def _human_review_interrupt(self, state: CatalogExtractionState) -> CatalogExtractionState:
-        """Handle human review requirement"""
+        """
+        Maneja el requerimiento de revisión humana creando una interrupción.
+        
+        Args:
+            state: Estado con productos que requieren revisión
+            
+        Returns:
+            Estado preparado para revisión humana con items marcados
+        """
         
         self.logger.info("Job requires human review - creating interrupt")
         
@@ -394,7 +482,15 @@ class OrkestaGraphBuilder:
         }
     
     async def _save_to_database(self, state: CatalogExtractionState) -> CatalogExtractionState:
-        """Save final products to database"""
+        """
+        Guarda los productos finales en la base de datos.
+        
+        Args:
+            state: Estado con productos validados
+            
+        Returns:
+            Estado con confirmación de guardado y metadatos
+        """
         
         self.logger.info("Saving products to database")
         
@@ -421,7 +517,15 @@ class OrkestaGraphBuilder:
         }
     
     async def _finalize_job(self, state: CatalogExtractionState) -> CatalogExtractionState:
-        """Finalize the extraction job"""
+        """
+        Finaliza el trabajo de extracción y genera resumen de resultados.
+        
+        Args:
+            state: Estado completo del pipeline
+            
+        Returns:
+            Estado final con resumen completo de la ejecución
+        """
         
         self.logger.info(f"Finalizing job {state['job_id']}")
         
@@ -464,15 +568,15 @@ class OrkestaGraphBuilder:
         extraction_config: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """
-        Start a new catalog extraction job
+        Inicia un nuevo trabajo de extracción de catálogos.
         
         Args:
-            tenant_id: ID of the tenant
-            sources: List of extraction sources  
-            extraction_config: Optional configuration overrides
+            tenant_id: ID del tenant/cliente
+            sources: Lista de fuentes de extracción (URLs, PDFs, etc.)
+            extraction_config: Configuración opcional para sobrescribir defaults
             
         Returns:
-            Job information including job_id and initial status
+            Información del trabajo incluyendo job_id y estado inicial
         """
         
         # Create initial state
@@ -501,7 +605,15 @@ class OrkestaGraphBuilder:
         return job_info
     
     def get_job_status(self, job_id: str) -> Dict[str, Any]:
-        """Get status of a running job"""
+        """
+        Obtiene el estado de un trabajo en ejecución.
+        
+        Args:
+            job_id: Identificador del trabajo
+            
+        Returns:
+            Diccionario con estado y metadatos del trabajo
+        """
         
         # Placeholder implementation
         # In real system, this would query the checkpointer or job queue

@@ -90,7 +90,16 @@ class MercadoLibreExtractor:
 
     @classmethod
     def extract_product_listing(cls, soup: BeautifulSoup, base_url: str) -> List[Dict[str, Any]]:
-        """Extract products from listing page"""
+        """
+        Extrae productos de una página de listado de MercadoLibre.
+        
+        Args:
+            soup: Objeto BeautifulSoup con el HTML parseado de la página
+            base_url: URL base para construir URLs absolutas
+            
+        Returns:
+            Lista de diccionarios con información de productos extraídos
+        """
         products = []
         
         for container_selector in cls.LISTING_SELECTORS["product_containers"]:
@@ -112,7 +121,16 @@ class MercadoLibreExtractor:
     
     @classmethod
     def _extract_single_listing_item(cls, container, base_url: str) -> Optional[Dict[str, Any]]:
-        """Extract single product from listing container"""
+        """
+        Extrae un producto individual de un contenedor del listado.
+        
+        Args:
+            container: Elemento BeautifulSoup del contenedor del producto
+            base_url: URL base para construir URLs absolutas
+            
+        Returns:
+            Diccionario con datos del producto o None si no se pudo extraer
+        """
         
         # Extract title
         title = None
@@ -189,7 +207,19 @@ class WebScrapingAgent(BaseAgent):
         ]
     
     def _setup_driver(self, headless: bool = True, stealth_mode: bool = True) -> webdriver.Chrome:
-        """Setup Chrome driver with anti-detection"""
+        """
+        Configura el driver de Chrome con medidas anti-detección.
+        
+        Args:
+            headless: Si ejecutar Chrome sin interfaz gráfica
+            stealth_mode: Si aplicar configuración stealth para evitar detección
+            
+        Returns:
+            Instancia configurada de webdriver.Chrome
+            
+        Raises:
+            Exception: Si falla la configuración del driver
+        """
         
         options = Options()
         
@@ -237,7 +267,16 @@ class WebScrapingAgent(BaseAgent):
             raise
     
     async def process(self, state: CatalogExtractionState, **kwargs) -> CatalogExtractionState:
-        """Process web sources for product extraction"""
+        """
+        Procesa fuentes web para extraer información de productos.
+        
+        Args:
+            state: Estado actual del pipeline de extracción
+            **kwargs: Argumentos adicionales opcionales
+            
+        Returns:
+            Estado actualizado con productos extraídos de fuentes web
+        """
         
         self.logger.info("Starting web scraping process")
         
@@ -286,7 +325,15 @@ class WebScrapingAgent(BaseAgent):
                     pass
     
     async def _scrape_source(self, source) -> List[Dict[str, Any]]:
-        """Scrape single source"""
+        """
+        Extrae datos de una fuente web individual.
+        
+        Args:
+            source: Objeto fuente con URL y configuración
+            
+        Returns:
+            Lista de productos extraídos de la fuente
+        """
         
         if not source.url:
             return []
@@ -301,7 +348,15 @@ class WebScrapingAgent(BaseAgent):
         return await self._scrape_generic_ecommerce(source)
     
     async def _scrape_mercadolibre(self, source) -> List[Dict[str, Any]]:
-        """Specialized MercadoLibre scraping"""
+        """
+        Extracción especializada para MercadoLibre con manejo de paginación.
+        
+        Args:
+            source: Fuente con URL de MercadoLibre y configuración
+            
+        Returns:
+            Lista de productos extraídos con alta precisión
+        """
         
         self.logger.info(f"Scraping MercadoLibre: {source.url}")
         
@@ -340,7 +395,15 @@ class WebScrapingAgent(BaseAgent):
             return []
     
     async def _scrape_generic_ecommerce(self, source) -> List[Dict[str, Any]]:
-        """Generic e-commerce site scraping"""
+        """
+        Extracción genérica para sitios e-commerce no especializados.
+        
+        Args:
+            source: Fuente con URL del sitio e-commerce
+            
+        Returns:
+            Lista de productos extraídos con selectores genéricos
+        """
         
         self.logger.info(f"Scraping generic e-commerce: {source.url}")
         
@@ -367,7 +430,16 @@ class WebScrapingAgent(BaseAgent):
             return []
     
     async def _extract_generic_products(self, soup: BeautifulSoup, base_url: str) -> List[Dict[str, Any]]:
-        """Extract products using common e-commerce selectors"""
+        """
+        Extrae productos usando selectores comunes de e-commerce.
+        
+        Args:
+            soup: HTML parseado de la página
+            base_url: URL base para referencias relativas
+            
+        Returns:
+            Lista de productos encontrados con selectores genéricos
+        """
         
         products = []
         
@@ -397,7 +469,16 @@ class WebScrapingAgent(BaseAgent):
         return products
     
     async def _extract_generic_product(self, container, base_url: str) -> Optional[Dict[str, Any]]:
-        """Extract single product from generic container"""
+        """
+        Extrae un producto individual de un contenedor genérico.
+        
+        Args:
+            container: Elemento HTML del contenedor del producto
+            base_url: URL base para construir URLs absolutas
+            
+        Returns:
+            Diccionario con datos del producto o None si falla extracción
+        """
         
         # Title extraction
         title_selectors = ["h1", "h2", "h3", ".title", ".name", ".product-name"]
@@ -447,7 +528,12 @@ class WebScrapingAgent(BaseAgent):
         }
     
     async def _human_like_scroll(self):
-        """Simulate human-like scrolling behavior"""
+        """
+        Simula comportamiento de scroll humano para evitar detección.
+        
+        Implementa patrones aleatorios de scroll con pausas variables
+        para simular navegación humana natural.
+        """
         
         if not self.driver:
             return
@@ -466,7 +552,16 @@ class WebScrapingAgent(BaseAgent):
         await asyncio.sleep(scroll_pause)
     
     async def _handle_pagination(self, source, max_pages: int = 3) -> List[Dict[str, Any]]:
-        """Handle pagination for additional products"""
+        """
+        Maneja la paginación para extraer productos adicionales.
+        
+        Args:
+            source: Fuente con configuración de paginación
+            max_pages: Número máximo de páginas a procesar
+            
+        Returns:
+            Lista de productos extraídos de páginas adicionales
+        """
         
         products = []
         current_page = 1
@@ -514,7 +609,11 @@ class WebScrapingAgent(BaseAgent):
         return products
     
     def __del__(self):
-        """Cleanup driver on deletion"""
+        """
+        Limpia y cierra el driver de Chrome al destruir el objeto.
+        
+        Asegura que no queden procesos de Chrome zombies en el sistema.
+        """
         if self.driver:
             try:
                 self.driver.quit()

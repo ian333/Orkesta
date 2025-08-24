@@ -26,7 +26,11 @@ class LLMClientManager:
         self._setup_clients()
     
     def _setup_clients(self):
-        """Initialize LLM clients based on configuration"""
+        """
+        Inicializa clientes LLM según la configuración.
+        
+        Configura cliente primario (Groq) y fallback (Azure OpenAI u OpenAI).
+        """
         
         # Primary: Groq
         if config.llm.groq_api_key:
@@ -55,7 +59,19 @@ class LLMClientManager:
             )
     
     async def invoke(self, messages: List[BaseMessage], **kwargs) -> AIMessage:
-        """Invoke LLM with fallback logic"""
+        """
+        Invoca el LLM con lógica de fallback automática.
+        
+        Args:
+            messages: Lista de mensajes para el LLM
+            **kwargs: Parámetros adicionales del LLM
+            
+        Returns:
+            Respuesta del LLM como AIMessage
+            
+        Raises:
+            RuntimeError: Si ningún cliente LLM está disponible
+        """
         
         # Try primary client first
         if self.primary_client:
@@ -82,7 +98,20 @@ class LLMClientManager:
         response_format: str = "json",
         **kwargs
     ) -> Dict[str, Any]:
-        """Invoke LLM expecting structured output"""
+        """
+        Invoca el LLM esperando salida estructurada (JSON).
+        
+        Args:
+            messages: Mensajes para el LLM
+            response_format: Formato esperado de respuesta (default: json)
+            **kwargs: Parámetros adicionales
+            
+        Returns:
+            Respuesta parseada como diccionario
+            
+        Raises:
+            ValueError: Si la respuesta no es JSON válido
+        """
         
         # Add instructions for structured output
         system_msg = SystemMessage(content=f"""
@@ -133,7 +162,12 @@ class BaseAgent(ABC):
         self.logger = logging.getLogger(f"orkesta.agent.{self.name}")
     
     def _load_agent_config(self) -> Dict[str, Any]:
-        """Load agent-specific configuration"""
+        """
+        Carga la configuración específica del agente.
+        
+        Returns:
+            Diccionario con parámetros de configuración del agente
+        """
         # This could be loaded from database or config files
         return {
             "max_retries": 3,
@@ -148,19 +182,29 @@ class BaseAgent(ABC):
         **kwargs
     ) -> CatalogExtractionState:
         """
-        Main processing method that each agent must implement
+        Método principal de procesamiento que cada agente debe implementar.
         
         Args:
-            state: Current state of the extraction workflow
-            **kwargs: Additional parameters
+            state: Estado actual del workflow de extracción
+            **kwargs: Parámetros adicionales opcionales
             
         Returns:
-            Updated state
+            Estado actualizado con resultados del procesamiento
         """
         pass
     
     async def _track_operation(self, operation_name: str, func, *args, **kwargs):
-        """Track operation metrics"""
+        """
+        Rastrea métricas de operaciones del agente.
+        
+        Args:
+            operation_name: Nombre de la operación para tracking
+            func: Función a ejecutar y monitorear
+            *args, **kwargs: Argumentos para la función
+            
+        Returns:
+            Resultado de la función ejecutada
+        """
         start_time = time.time()
         
         try:
@@ -195,15 +239,15 @@ class BaseAgent(ABC):
         response_format: str = "text"
     ) -> Union[str, Dict[str, Any]]:
         """
-        Analyze data using LLM
+        Analiza datos usando el LLM con contexto opcional.
         
         Args:
-            prompt: The prompt to send to LLM
-            context: Additional context data
-            response_format: "text" or "json"
+            prompt: Prompt para enviar al LLM
+            context: Datos de contexto adicionales
+            response_format: Formato de respuesta esperado (text o json)
             
         Returns:
-            LLM response as text or parsed JSON
+            Respuesta del LLM como texto o JSON parseado
         """
         
         messages = [HumanMessage(content=prompt)]
@@ -224,14 +268,14 @@ class BaseAgent(ABC):
         validation_rules: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Validate extracted data using LLM
+        Valida datos extraídos usando el LLM con reglas específicas.
         
         Args:
-            data: List of data items to validate
-            validation_rules: Rules for validation
+            data: Lista de items de datos a validar
+            validation_rules: Reglas de validación a aplicar
             
         Returns:
-            Validation results
+            Resultados de validación con resumen y detalles por item
         """
         
         validation_prompt = f"""
@@ -277,15 +321,15 @@ class BaseAgent(ABC):
         examples: Optional[List[Dict[str, Any]]] = None
     ) -> List[Dict[str, Any]]:
         """
-        Extract structured data from raw text using LLM
+        Extrae datos estructurados de texto crudo usando el LLM.
         
         Args:
-            raw_text: Raw text to extract from
-            extraction_schema: Schema defining what to extract
-            examples: Example extractions to guide the LLM
+            raw_text: Texto crudo del cual extraer
+            extraction_schema: Esquema definiendo qué extraer
+            examples: Ejemplos de extracción para guiar al LLM
             
         Returns:
-            List of extracted items
+            Lista de items extraídos según el esquema
         """
         
         examples_str = ""
@@ -324,14 +368,14 @@ class BaseAgent(ABC):
         updates: Dict[str, Any]
     ) -> CatalogExtractionState:
         """
-        Update state with new data
+        Actualiza el estado con nuevos datos y metadatos del agente.
         
         Args:
-            state: Current state
-            updates: Dictionary of updates to apply
+            state: Estado actual del pipeline
+            updates: Diccionario de actualizaciones a aplicar
             
         Returns:
-            Updated state
+            Estado actualizado con timestamp y agente actual
         """
         
         # Create a new state dict with updates
@@ -350,7 +394,17 @@ class BaseAgent(ABC):
         error_message: str, 
         error_data: Optional[Dict[str, Any]] = None
     ) -> CatalogExtractionState:
-        """Add an error to the state"""
+        """
+        Agrega un error al estado con información del agente.
+        
+        Args:
+            state: Estado actual
+            error_message: Mensaje de error descriptivo
+            error_data: Datos adicionales del error
+            
+        Returns:
+            Estado actualizado con el error registrado
+        """
         
         error_entry = {
             "agent": self.name,
@@ -372,7 +426,16 @@ class BaseAgent(ABC):
         state: CatalogExtractionState, 
         warning_message: str
     ) -> CatalogExtractionState:
-        """Add a warning to the state"""
+        """
+        Agrega una advertencia al estado.
+        
+        Args:
+            state: Estado actual
+            warning_message: Mensaje de advertencia
+            
+        Returns:
+            Estado actualizado con la advertencia
+        """
         
         new_warnings = list(state["warnings"])
         new_warnings.append(f"[{self.name}] {warning_message}")
@@ -382,7 +445,12 @@ class BaseAgent(ABC):
         })
     
     def get_metrics(self) -> Dict[str, Any]:
-        """Get agent performance metrics"""
+        """
+        Obtiene métricas de rendimiento del agente.
+        
+        Returns:
+            Diccionario con métricas y configuración del agente
+        """
         return {
             "agent_name": self.name,
             "agent_type": self.agent_type.value,
@@ -391,7 +459,12 @@ class BaseAgent(ABC):
         }
     
     async def health_check(self) -> Dict[str, Any]:
-        """Check agent health status"""
+        """
+        Verifica el estado de salud del agente y conectividad LLM.
+        
+        Returns:
+            Diccionario con estado de salud, métricas y conectividad
+        """
         
         health_status = {
             "agent": self.name,
@@ -420,22 +493,45 @@ class AgentRegistry:
     
     @classmethod
     def register(cls, agent: BaseAgent) -> None:
-        """Register an agent instance"""
+        """
+        Registra una instancia de agente en el registry.
+        
+        Args:
+            agent: Instancia del agente a registrar
+        """
         cls._agents[agent.name] = agent
     
     @classmethod
     def get_agent(cls, name: str) -> Optional[BaseAgent]:
-        """Get an agent by name"""
+        """
+        Obtiene un agente por nombre del registry.
+        
+        Args:
+            name: Nombre del agente
+            
+        Returns:
+            Instancia del agente o None si no existe
+        """
         return cls._agents.get(name)
     
     @classmethod
     def get_all_agents(cls) -> Dict[str, BaseAgent]:
-        """Get all registered agents"""
+        """
+        Obtiene todos los agentes registrados.
+        
+        Returns:
+            Diccionario con todos los agentes registrados
+        """
         return cls._agents.copy()
     
     @classmethod
     async def health_check_all(cls) -> Dict[str, Dict[str, Any]]:
-        """Run health checks on all agents"""
+        """
+        Ejecuta verificación de salud en todos los agentes registrados.
+        
+        Returns:
+            Diccionario con resultados de salud de cada agente
+        """
         results = {}
         
         for name, agent in cls._agents.items():

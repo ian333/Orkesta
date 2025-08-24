@@ -105,18 +105,21 @@ class QualityMetrics:
     
     @property
     def average_confidence(self) -> float:
+        """Calcula el promedio de confianza de todos los items."""
         if not self.confidence_scores:
             return 0.0
         return sum(self.confidence_scores) / len(self.confidence_scores)
     
     @property
     def average_completeness(self) -> float:
+        """Calcula el promedio de completitud de los datos."""
         if not self.completeness_scores:
             return 0.0
         return sum(self.completeness_scores) / len(self.completeness_scores)
     
     @property
     def success_rate(self) -> float:
+        """Calcula la tasa de éxito (items válidos / total)."""
         if self.total_items == 0:
             return 0.0
         return self.valid_items / self.total_items
@@ -293,7 +296,17 @@ def create_initial_state(
     sources: List[ExtractionSource],
     extraction_config: Dict[str, Any] = None
 ) -> CatalogExtractionState:
-    """Create initial state for catalog extraction"""
+    """
+    Crea el estado inicial para extracción de catálogos.
+    
+    Args:
+        tenant_id: ID del tenant/cliente
+        sources: Lista de fuentes de extracción
+        extraction_config: Configuración opcional de extracción
+        
+    Returns:
+        Estado inicial con todos los campos configurados
+    """
     
     job_id = str(uuid.uuid4())
     
@@ -339,7 +352,16 @@ def update_quality_metrics(
     state: CatalogExtractionState, 
     products: List[ProductData]
 ) -> QualityMetrics:
-    """Update quality metrics based on processed products"""
+    """
+    Actualiza métricas de calidad basadas en productos procesados.
+    
+    Args:
+        state: Estado actual del pipeline
+        products: Lista de productos procesados
+        
+    Returns:
+        Métricas de calidad actualizadas con promedios y conteos
+    """
     
     if not products:
         return state["quality_metrics"]
@@ -362,7 +384,16 @@ def should_require_human_review(
     state: CatalogExtractionState,
     threshold: float = 0.7
 ) -> bool:
-    """Determine if human review is required based on quality metrics"""
+    """
+    Determina si se requiere revisión humana basado en métricas de calidad.
+    
+    Args:
+        state: Estado con métricas de calidad
+        threshold: Umbral mínimo de confianza aceptable
+        
+    Returns:
+        True si se requiere revisión humana, False en caso contrario
+    """
     
     metrics = state["quality_metrics"]
     
@@ -382,7 +413,15 @@ def should_require_human_review(
 
 
 def create_checkpoint_data(state: CatalogExtractionState) -> Dict[str, Any]:
-    """Create checkpoint data for resuming workflows"""
+    """
+    Crea datos de checkpoint para reanudar workflows interrumpidos.
+    
+    Args:
+        state: Estado actual del workflow
+        
+    Returns:
+        Diccionario con datos esenciales para reanudar el proceso
+    """
     
     return {
         "job_id": state["job_id"],

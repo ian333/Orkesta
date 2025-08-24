@@ -39,7 +39,15 @@ class TestWorkingSQLite:
     
     @pytest.fixture(scope="class")
     def sqlite_db(self):
-        """Crear base de datos SQLite temporal"""
+        """
+        Crea base de datos SQLite temporal para testing.
+        
+        Configura schema multi-tenant con tablas de productos
+        y limpia automáticamente al finalizar.
+        
+        Yields:
+            Conexión SQLite configurada
+        """
         db_path = tempfile.mktemp(suffix='.db')
         conn = sqlite3.connect(db_path)
         
@@ -67,7 +75,15 @@ class TestWorkingSQLite:
         os.unlink(db_path)
     
     def test_sqlite_multi_tenant(self, sqlite_db):
-        """Test de aislamiento multi-tenant con SQLite"""
+        """
+        Verifica aislamiento multi-tenant con SQLite.
+        
+        Prueba que cada tenant solo puede acceder a sus propios datos
+        y que no hay filtración de información entre tenants.
+        
+        Args:
+            sqlite_db: Fixture de conexión SQLite
+        """
         cursor = sqlite_db.cursor()
         
         # Insertar productos para diferentes tenants
@@ -183,7 +199,15 @@ class TestWorkingMemoryCache:
         return MemoryCache()
     
     def test_memory_cache_operations(self, memory_cache):
-        """Test de caché en memoria"""
+        """
+        Prueba operaciones de caché en memoria con TTL.
+        
+        Verifica set/get, serialización JSON y expiración automática
+        de entradas según tiempo de vida (TTL).
+        
+        Args:
+            memory_cache: Fixture de caché en memoria
+        """
         # Guardar catálogo
         catalog = [
             {"sku": "MEM-001", "name": "Producto en Memoria", "price": 50}
@@ -219,7 +243,12 @@ class TestWorkingWebScraping:
     
     @pytest.mark.asyncio
     async def test_web_scraping_with_mock_driver(self):
-        """Test de web scraping usando mock driver"""
+        """
+        Prueba web scraping con driver mockeado sin Chrome real.
+        
+        Simula extracción de MercadoLibre usando HTML estático
+        y verifica que los selectores CSS funcionan correctamente.
+        """
         
         # Mock del WebDriver
         mock_driver = MagicMock()
@@ -265,7 +294,12 @@ class TestWorkingWebScraping:
     
     @pytest.mark.asyncio
     async def test_real_http_without_selenium(self):
-        """Test de extracción HTTP sin Selenium"""
+        """
+        Prueba extracción HTTP directa sin necesidad de Selenium.
+        
+        Usa requests y BeautifulSoup para demostrar extracción
+        ligera cuando no se requiere JavaScript.
+        """
         import requests
         from bs4 import BeautifulSoup
         
